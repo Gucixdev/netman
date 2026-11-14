@@ -1,8 +1,44 @@
 #!/bin/sh
-# tools/cc [cc flags...] -o OUT - build the netman binary. The ONE place that knows the file list: src/sources (paths relative to the repo root).
-# ./run and every test script call this, so moving or adding a module means editing src/sources and nothing else.
+# tools/cc [cc flags...] -o OUT - build the netman binary: parallel (one cc per file, all cores) and incremental (objects cached in bin/cache/<flags hash>/,
+# rebuilt only when their .c or any header they include is newer). The ONE place that knows the file list: src/sources (paths relative to the repo root).
+# ./run and every test script call this, so moving or adding a module means editing src/sources and nothing else. Needs only sh and a C compiler.
 # -Wno-format-truncation: the snprintf calls into fixed buffers cut on purpose (every buffer is bounded; nothing reads past it).
-# $CC picks the compiler (default cc). Extra flags (e.g. -Wno-format-truncation, -DNETMAN_X) come first.
-root=$(dirname "$(readlink -f "$0")")/..
+# $CC picks the compiler (default cc); extra flags (-DNETMAN_X, -Wno-unused-function) come before -o. Different flags get their own cache directory.
+# $OPT is the optimisation level (default -O1: the program is I/O bound and -O2 doubles the build time of the big src/netman.c); $CC_JOBS caps the parallelism (default: all cores).
+self=$(readlink -f "$0")
+root=$(dirname "$self")/..
 cd "$root" || exit 1
-exec "${CC:-cc}" -std=gnu11 -Wall -Wextra -O2 -Wno-format-truncation -Isrc -Isrc/mods -Isrc/mods/vpn "$@" $(cat src/sources)
+
+if [ "${1:-}" = --one ]; then   # internal: compile src/FILE.c into the cache unless it is up to date; env: CC_BIN CC_FLAGS CC_CACHE
+	f=$2; o=$CC_CACHE/$(printf %s "$f" | tr / _).o; d=${o%.o}.d
+	if [ -f "$o" ] && [ -f "$d" ] && [ "$o" -nt "$f" ]; then
+		stale=
+		for h in $(tr -d '\\' <"$d" | sed 's/^[^:]*://' | tr -s ' \n' '\n\n'); do
+			if [ ! -e "$h" ] || [ "$h" -nt "$o" ]; then stale=1; break; fi
+		done
+		[ -z "$stale" ] && exit 0
+	fi
+	# shellcheck disable=SC2086
+	"$CC_BIN" $CC_FLAGS -MMD -MF "$d.$$" -MT "$o" -c -o "$o.$$" "$f" || { rm -f "$o.$$" "$d.$$"; exit 1; }
+	mv "$d.$$" "$d" && mv "$o.$$" "$o"
+	exit 0
+fi
+
+out=; extra=
+while [ $# -gt 0 ]; do
+	case $1 in -o) out=$2; shift 2;; *) extra="$extra $1"; shift;; esac
+done
+[ -n "$out" ] || { echo "usage: tools/cc [cc flags...] -o OUT" >&2; exit 2; }
+CC_BIN=${CC:-cc}
+CC_FLAGS="-std=gnu11 -Wall -Wextra ${OPT:--O1} -Wno-format-truncation -Isrc -Isrc/mods -Isrc/mods/vpn$extra"
+key=$(printf %s "$CC_BIN $CC_FLAGS" | cksum | cut -d' ' -f1)
+CC_CACHE=bin/cache/$key
+mkdir -p "$CC_CACHE" || exit 1
+export CC_BIN CC_FLAGS CC_CACHE
+jobs=${CC_JOBS:-$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)}
+# one line per file, sorted so the big translation unit (src/netman.c) starts first
+tr '\n' '\0' <src/sources | xargs -0 -n1 -P "$jobs" "$self" --one || exit 1
+objs=
+while read -r f; do objs="$objs $CC_CACHE/$(printf %s "$f" | tr / _).o"; done <src/sources
+# shellcheck disable=SC2086
+"$CC_BIN" $CC_FLAGS -o "$out" $objs

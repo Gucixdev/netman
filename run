@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# run - build netman (once, or when a source is newer) and open its terminal UI. No arguments; the CLI is bin/netman (`bin/netman help`).
+# run - build netman (parallel and incremental via tools/cc) and open its terminal UI. No arguments; the CLI is bin/netman (`bin/netman help`).
 # Needs only a C compiler (cc, gcc or clang). Root is asked for by netman itself (sudo password prompt) and only when the backend needs it.
 set -eu
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 cc=${CC:-}
 if [ -z "$cc" ]; then for c in cc gcc clang; do command -v "$c" >/dev/null 2>&1 && { cc=$c; break; }; done; fi
-if [ ! -x bin/netman ] || [ -n "$(find src -type f \( -name '*.[ch]' \) -newer bin/netman -print -quit)" ]; then
-	if [ -z "$cc" ] || ! command -v "$cc" >/dev/null 2>&1; then
-		echo "netman: no C compiler found (looked for cc, gcc, clang; \$CC=${CC:-unset}). Install one, e.g. 'pacman -S gcc' / 'apt install gcc', then run ./run again." >&2
-		exit 1
-	fi
+if [ -z "$cc" ] || ! command -v "$cc" >/dev/null 2>&1; then
+	[ -x bin/netman ] || { echo "netman: no C compiler found (looked for cc, gcc, clang; \$CC=${CC:-unset}). Install one, e.g. 'pacman -S gcc' / 'apt install gcc', then run ./run again." >&2; exit 1; }
+else
 	mkdir -p bin
-	echo "netman: building bin/netman with $cc ..." >&2
+	# tools/cc is parallel and incremental: unchanged files are not compiled again, a no-op takes ~0.1 s
 	CC="$cc" tools/cc -o bin/netman.tmp || { rm -f bin/netman.tmp; echo "netman: the build failed (see above)" >&2; exit 1; }
 	mv bin/netman.tmp bin/netman
 fi
