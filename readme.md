@@ -20,7 +20,7 @@ for Wi-Fi and bluez for Bluetooth, plus own netlink/DHCP/DNS, WireGuard/OpenVPN,
     src/priv.h          when to re-run through sudo
     src/tui.h           the terminal UI
     src/mods/           stb-style libraries: wifi.h btth.h dbus.h net.h roaming.h scoring.h metrics.h vpn.h firewall.h wireguard.h (+ wireguard.c, netlink.c, tether.c, licence.c: plain .c, not stb) (+ vpnmod/openvpn/ipsec/l2tp/openconnect/sstp/vpnimport/tor .c: the VPN client modules, profile import, Tor; + ssh.c mesh.c bonding.c tunnel.c: the optional network mods below, each off by default, shared helpers in modkit.h;; netlink.c: bond, bridge, vlan, routes, ECMP, link settings; wol.c: Wake-on-LAN)
-    src/daemon.c, daemonless.c   placeholders for the future daemon (it must respect the same config)
+    src/daemon.c   placeholder for the future daemon (it must respect the same config)
 
 ## use
 

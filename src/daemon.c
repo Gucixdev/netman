@@ -2,7 +2,7 @@
  *
  * Claims org.freedesktop.NetworkManager on the system bus (never queues behind or steals it from a running NetworkManager) and serves the
  * NM D-Bus API of mods/nmapi.c until SIGTERM/SIGINT. --bus ADDRESS (or DBUS_SYSTEM_BUS_ADDRESS) selects another bus, e.g. a private
- * dbus-daemon for tests; the Wi-Fi backend then talks to the same bus. daemonless.c is the one-shot CLI path and is not involved.
+ * dbus-daemon for tests; the Wi-Fi backend then talks to the same bus.
  * Included into netman.c after mods/nmapi.c.
  */
 #include <poll.h>
