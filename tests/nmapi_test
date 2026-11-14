@@ -9,7 +9,7 @@ cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 CC=${CC:-cc}
 common="-std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-format-truncation -O2"
-$CC $common -Isrc -Isrc/mods src/netman.c src/config.c src/mods/netlink.c src/mods/wol.c src/mods/tether.c src/mods/licence.c src/mods/wireguard.c src/mods/vpnmod.c src/mods/openvpn.c src/mods/ipsec.c src/mods/l2tp.c src/mods/openconnect.c src/mods/sstp.c src/mods/vpnimport.c src/mods/tor.c src/mods/ssh.c src/mods/mesh.c src/mods/bonding.c src/mods/tunnel.c -o "$work/netman" || exit 1
+CC="$CC" tools/cc -Wno-unused-function -Wno-format-truncation -o "$work/netman" || exit 1
 $CC $common -Isrc/mods tests/fakes.c -o "$work/fakes" || exit 1
 $CC $common -Isrc/mods tests/nmapi_raw_test.c -o "$work/raw" || exit 1
 libnm=0

@@ -284,9 +284,12 @@ static int nc_modargv(const nc_cmd *c, int n, char **a, char **av)
 static void nc_ssh_cfg(netman_ssh_cfg *o)
 {
 	netman_ssh_cfg_defaults(o);
-	snprintf(o->dir, sizeof o->dir, "%s", netman_config_str(&nc_cfg, NC_SSH_DIR)); snprintf(o->state, sizeof o->state, "%s", netman_config_str(&nc_cfg, NC_SSH_STATE));
-	snprintf(o->known, sizeof o->known, "%s", netman_config_str(&nc_cfg, NC_SSH_KNOWN)); if (*netman_config_str(&nc_cfg, NC_SSH_BIN)) snprintf(o->bin, sizeof o->bin, "%s", netman_config_str(&nc_cfg, NC_SSH_BIN));
-	if (*netman_config_str(&nc_cfg, NC_SSH_KEYSCAN)) snprintf(o->keyscan, sizeof o->keyscan, "%s", netman_config_str(&nc_cfg, NC_SSH_KEYSCAN)); if (*netman_config_str(&nc_cfg, NC_SSH_KEYGEN)) snprintf(o->keygen, sizeof o->keygen, "%s", netman_config_str(&nc_cfg, NC_SSH_KEYGEN));
+	snprintf(o->dir, sizeof o->dir, "%s", netman_config_str(&nc_cfg, NC_SSH_DIR));
+	snprintf(o->state, sizeof o->state, "%s", netman_config_str(&nc_cfg, NC_SSH_STATE));
+	snprintf(o->known, sizeof o->known, "%s", netman_config_str(&nc_cfg, NC_SSH_KNOWN));
+	if (*netman_config_str(&nc_cfg, NC_SSH_BIN)) snprintf(o->bin, sizeof o->bin, "%s", netman_config_str(&nc_cfg, NC_SSH_BIN));
+	if (*netman_config_str(&nc_cfg, NC_SSH_KEYSCAN)) snprintf(o->keyscan, sizeof o->keyscan, "%s", netman_config_str(&nc_cfg, NC_SSH_KEYSCAN));
+	if (*netman_config_str(&nc_cfg, NC_SSH_KEYGEN)) snprintf(o->keygen, sizeof o->keygen, "%s", netman_config_str(&nc_cfg, NC_SSH_KEYGEN));
 }
 static void nc_mod_globals(void)   /* the mods that keep their paths in globals; empty bin keys keep the mod's default (PATH lookup) */
 {
