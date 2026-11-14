@@ -377,7 +377,7 @@ validate the config files and environment. Errors are FILE:LINE with a did\-you\
 edit the user config file (atomic, comments kept)
 .TP
 .B netman settings
-the settings panel's data as a list: key, value, where it comes from, what it does (= settings list). The TUI panel is key S inside `netman \-tui`. Everything below works on the same schema (src/settings.c).
+the settings panel's data as a list: key, value, where it comes from, what it does (= settings list). The TUI shows it as the Settings tab of `netman \-tui`. Everything below works on the same schema (src/settings.c).
 .TP
 .B netman settings list [SECTION|TAB] [\-\-all]
 every setting: key, value, source (default/system/user/env), description. Settings of a module that is switched off are left out; \-\-all lists them. [restart] = needs a restart of the thing that reads it, [root] = acting on it needs root.
@@ -429,7 +429,7 @@ the terminal UI (also \-\-tui, \-t); ? inside shows help
 enterprise networking: bonding/teaming, bridges with STP and vlan filtering, vlans and QinQ, macvlan/ipvlan, veth, routes, rules and tables, ECMP with failover, link settings, IPv6 prefix delegation, USB/Bluetooth tethering, wired 802.1X. Profiles are NAME.ent files ("key = value", same syntax as net profiles) in the netman config directory. team is bonding: the kernel team driver is deprecated, so kind=team maps runner= (activebackup, lacp, loadbalance, broadcast, roundrobin) onto the bonding driver. Tethering share\-out uses its own nft table `inet netman_tether` (firewall.h replaces `inet netman`, so the two never clobber each other); an accept there cannot override a drop in another table, so a strict firewall must allow the downstream interface itself. Changing commands need enterprise.enabled = yes.
 .TP
 .B settings
-the settings schema (src/settings.c) as commands: list, get, set, toggle, reset, check, a JSON API (\-\-dump\-api) and dmenu helpers (menu | dmenu | pick). The TUI panel on key S shows the same data. Writes go to ~/.config/netman/netman.conf only, atomically, comments kept.
+the settings schema (src/settings.c) as commands: list, get, set, toggle, reset, check, a JSON API (\-\-dump\-api) and dmenu helpers (menu | dmenu | pick). The Settings tab of the TUI shows the same data. Writes go to ~/.config/netman/netman.conf only, atomically, comments kept.
 .TP
 .B licence
 licence files NAME.lic with expiry, the expiry check (exit 1 when anything expires soon), and hook\-driven renewal. Switched by licence.enabled.
@@ -449,8 +449,8 @@ GENERAL
   tab / shift\-tab, h l, 1\-5   switch tab (tabs of modules disabled in config are hidden)
   j k, arrows, PgUp PgDn      move;  g G  first / last
   /                           filter by name
-  r                           refresh / rescan
-  S                           settings panel (see SETTINGS below)
+  + \-                         refresh interval of the tab: shorter / longer (500 ms .. 60 s, saved as tui.refresh_ms).
+                              There is no refresh key: the tab re\-reads itself every interval; Wi\-Fi asks the radio for a real scan every 30 s
   i                           details popup for the selected row;  I  toggle the big "all info" view
                               (replaces the list; j k pick another row, PgUp PgDn scroll, esc / I close)
   ?                           this help;  q  quit
@@ -477,14 +477,13 @@ VPN
   K        toggle the nftables kill switch;  i  details: endpoint, allowed ips, handshake age, transfer, split tunnel
   States: up, down, connecting, failed; locked = unreadable (run as root), untrusted = file must be root/self
   owned and not group/world writable. Creating tunnels needs root: with VPN profiles present the TUI asks sudo.
-  r        refresh
 ENTERPRISE (only with enterprise.enabled = yes)
   read\-only status: bonds, bridges, vlans, uplinks (ECMP), tethering (when tether.enabled) and licences
   (when licence.enabled), from the saved .ent profiles and the live kernel state;  i  details of the selected
   row;  I  the same plus the raw profile text. Changes are made with  netman ent ... / licence ... / key ...
-SETTINGS (key S: every netman.conf key, same data as `netman settings`)
+SETTINGS (its own tab, last in the tab bar: every netman.conf key, same data as `netman settings`)
   tabs: Modules (the on/off switch of every module) then one tab per area; a module's tab exists only while it is enabled
-  j k move;  h l, tab, 1\-9 change tab;  / search all settings;  esc clears the search, then closes;  S or q close
+  j k move;  h l change page;  tab / shift\-tab / 1\-5 change the main tab;  / search all settings;  esc clears the search;  q quit
   enter / space   toggle a yes/no, cycle a choice, edit text and numbers (enter saves, esc cancels, errors show as you type)
   + \-  step a number or cycle a choice backwards;  e  edit any value as text;  d  back to the default (removes the line)
   mouse: click a tab or a row, click the selected row again to change it, wheel scrolls
@@ -718,6 +717,9 @@ TUI colours. Default: default. Panel tab: Interface.
 .TP
 .B tui.unicode
 Box drawing and glyphs. auto = by locale; no = plain ASCII. Default: auto. Panel tab: Interface.
+.TP
+.B tui.refresh_ms
+How often the TUI re\-reads the current tab (ms). Change it live with + and \- in the TUI; Wi\-Fi asks the radio for a real scan every 30 s. Default: 2000. Panel tab: Interface.
 .TP
 .B privileges.sudo
 When netman re\-runs itself through sudo: auto = only when the command needs root, never, always. Default: auto. Panel tab: Interface.

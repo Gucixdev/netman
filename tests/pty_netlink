@@ -44,13 +44,13 @@ start() { # cols rows config
 
 # --- disabled: no tab at all ---
 start 100 26 "$work/off.conf"
-has "1 Ethernet" "ethernet tab present"; hasnt "Enterprise" "no Enterprise tab when enterprise.enabled = no"
+has "1 Ethernet" "ethernet tab present"; hasnt "Links" "no Links tab when enterprise.enabled = no"
 keys 2
 hasnt "wan:dummy0" "key 2 does not open an enterprise tab"
 $T kill-server 2>/dev/null
 # --- enabled ---
 start 100 26 "$work/c.conf"
-has "1 Enterprise" "the tab exists (only module on)"
+has "1 Links" "the tab exists (only module on)"
 has "bond0" "live bond listed"; has "bondx" "profile whose device is absent listed"; has "absent" "absent state"; has "br0" "live bridge listed (no profile)"
 has "dummy0.10" "live vlan listed"; has "vid 10" "vlan id shown"; has "wan:dummy0" "ecmp uplink listed"; has "wan:dummy1" "second uplink"
 has "seat" "licence listed"; has "valid" "valid licence"; has "expired" "expired licence flagged"

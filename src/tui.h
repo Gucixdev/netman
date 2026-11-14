@@ -46,8 +46,8 @@ typedef struct {
 
 typedef struct { char key[96]; signed char v[8]; int n; } nm_hist;   /* last signal readings of one network */
 
-enum { NM_WIFI, NM_ETH, NM_BT, NM_VPN, NM_ENT, NM_TOR, NM_SSH, NM_MESH, NM_BOND, NM_TUN, NM_NTAB };
-enum { NM_NORMAL, NM_FILTER, NM_PROMPT, NM_CONFIRM, NM_HELP, NM_WPS, NM_INFO, NM_SETTINGS };
+enum { NM_WIFI, NM_ETH, NM_BT, NM_VPN, NM_ENT, NM_TOR, NM_SSH, NM_MESH, NM_BOND, NM_TUN, NM_SET, NM_NTAB };   /* NM_SET (Settings) is always the last tab */
+enum { NM_NORMAL, NM_FILTER, NM_PROMPT, NM_CONFIRM, NM_HELP, NM_WPS, NM_INFO };
 enum { NM_K_UP = 0x101, NM_K_DOWN, NM_K_RIGHT, NM_K_LEFT, NM_K_BTAB, NM_K_PGUP, NM_K_PGDN, NM_K_HOME, NM_K_END, NM_K_TAB = 9, NM_K_ENTER = 13, NM_K_ESC = 27, NM_K_BS = 127 };
 enum { NM_SORT_SIGNAL, NM_SORT_NAME, NM_SORT_SECURED, NM_SORT_OPEN, NM_NSORT };
 
@@ -73,6 +73,7 @@ typedef struct {
 	char cwhat[96], cssid[96];              /* what a confirmation is about */
 	int hoff;                               /* help / info popup scroll offset */
 	int busy, spin;                         /* a worker is running; spinner frame counter */
+	int refresh_ms;                         /* auto-refresh interval of the current tab (+ / - change it, tui.refresh_ms in the config) */
 	char blabel[96];
 	char dl[NM_MAXDL][160]; int ndl;        /* lines of the details popup */
 	nm_hist hist[NM_MAXNET]; int nhist;
@@ -321,7 +322,7 @@ void nm_theme_make(nm_theme *t, int unicode, const char *name)
 }
 
 /* the Tor tab shows its status as read-only rows in the same list as the Enterprise tab */
-static int nm__entlike(const nm_ui *u) { return u->tab >= NM_ENT; }   /* Enterprise, Tor, SSH, Mesh, Bond, Tunnel share the row list */
+static int nm__entlike(const nm_ui *u) { return u->tab >= NM_ENT && u->tab < NM_SET; }   /* Enterprise, Tor, SSH, Mesh, Bond, Tunnel share the row list */
 void nm_ui_init(nm_ui *u, int w, int h)
 {
 	memset(u, 0, sizeof *u);
@@ -331,6 +332,7 @@ void nm_ui_init(nm_ui *u, int w, int h)
 	u->en[NM_ENT] = 0; u->en[NM_TOR] = 0; u->en[NM_SSH] = 0; u->en[NM_MESH] = 0; u->en[NM_BOND] = 0; u->en[NM_TUN] = 0;                      /* the Enterprise tab exists only when enterprise.enabled (nc_tui) */
 	u->rssi_good = -55; u->rssi_ok = -65; u->rssi_weak = -75;
 	u->hdr.score = -1; u->ks = -1;
+	u->refresh_ms = 2000;
 }
 
 static int nm__ci_has(const char *hay, const char *needle)
@@ -433,7 +435,7 @@ static int nm__tabs(const nm_ui *u, int *out) { int n = 0; for (int i = 0; i < N
 
 static const char *nm__tabname(int i, int shortn)
 {
-	static const char *full[] = { "Wi-Fi", "Ethernet/IP", "Bluetooth", "VPN", "Enterprise", "Tor", "SSH", "Mesh", "Bond", "Tunnel" }, *sh[] = { "Wi-Fi", "Eth", "BT", "VPN", "Ent", "Tor", "SSH", "Mesh", "Bond", "Tun" };
+	static const char *full[] = { "Wi-Fi", "Ethernet/IP", "Bluetooth", "VPN", "Links", "Tor", "SSH", "Mesh", "Bond", "Tunnel", "Settings" }, *sh[] = { "Wi-Fi", "Eth", "BT", "VPN", "Link", "Tor", "SSH", "Mesh", "Bond", "Tun", "Set" };
 	return shortn ? sh[i] : full[i];
 }
 
@@ -441,15 +443,18 @@ typedef struct { const char *k, *l; } nm__Key;
 
 static void nm__kb(nm__Row *r, const nm_theme *t, const char *k, const char *l) { nm__row_raw(r, t->key); nm__row_add(r, k, -1); nm__row_raw(r, t->reset); nm__row_fmt(r, -1, " %s  ", l); }
 
+/* the refresh interval as the key bar shows it: 500ms, 2s, 30s */
+static void nm__ivl(char *out, size_t n, int ms) { if (ms < 1000) snprintf(out, n, "%dms", ms); else snprintf(out, n, "%ds", ms / 1000); }
+
 static void nm__keybar(const nm_ui *u, const nm_theme *t, nm__Row *r)
 {
-	static const nm__Key wifi[] = { { "enter", "connect" }, { "i", "info" }, { "I", "all" }, { "s", "sort" }, { "o", "open/sec" }, { "d", "disc" }, { "x", "forget" }, { "a", "auto" }, { "w", "wps" }, { "H", "hotspot" }, { "r", "rescan" }, { "/", "filter" } };
+	static const nm__Key wifi[] = { { "enter", "connect" }, { "i", "info" }, { "I", "all" }, { "s", "sort" }, { "o", "open/sec" }, { "d", "disc" }, { "x", "forget" }, { "a", "auto" }, { "w", "wps" }, { "H", "hotspot" }, { "/", "filter" } };
 	static const nm__Key bt[] = { { "enter", "conn" }, { "i", "info" }, { "I", "all" }, { "p", "pair" }, { "t", "trust" }, { "x", "remove" }, { "s", "scan" }, { "o", "power" }, { "/", "filter" } };
-	static const nm__Key eth[] = { { "i", "info" }, { "I", "all" }, { "r", "refresh" }, { "/", "filter" } };
-	static const nm__Key vpn[] = { { "enter", "up/down" }, { "K", "killsw" }, { "i", "info" }, { "I", "all" }, { "r", "refresh" }, { "/", "filter" } };
-	static const nm__Key ent[] = { { "i", "info" }, { "I", "all" }, { "r", "refresh" }, { "/", "filter" } };
+	static const nm__Key eth[] = { { "i", "info" }, { "I", "all" }, { "/", "filter" } };
+	static const nm__Key vpn[] = { { "enter", "up/down" }, { "K", "killsw" }, { "i", "info" }, { "I", "all" }, { "/", "filter" } };
+	static const nm__Key ent[] = { { "i", "info" }, { "I", "all" }, { "/", "filter" } };
 	const nm__Key *k = u->tab == NM_WIFI ? wifi : u->tab == NM_BT ? bt : u->tab == NM_ETH ? eth : nm__entlike(u) ? ent : vpn;
-	int n = u->tab == NM_WIFI ? 12 : u->tab == NM_BT ? 9 : u->tab == NM_ETH ? 4 : nm__entlike(u) ? 4 : 6, fixed = 26;
+	int n = u->tab == NM_WIFI ? 11 : u->tab == NM_BT ? 9 : u->tab == NM_ETH ? 3 : nm__entlike(u) ? 3 : 5, fixed = 28;
 	if (u->mode == NM_HELP || u->mode == NM_INFO) { nm__kb(r, t, "j/k", "scroll"); nm__kb(r, t, "esc", "close"); return; }
 	if (u->mode == NM_PROMPT) { nm__kb(r, t, "enter", "ok"); if (u->masked) nm__kb(r, t, "tab", "show/hide"); nm__kb(r, t, "esc", "cancel"); return; }
 	if (u->mode == NM_CONFIRM) { nm__kb(r, t, "y", "yes"); nm__kb(r, t, "n", "no"); return; }
@@ -458,7 +463,8 @@ static void nm__keybar(const nm_ui *u, const nm_theme *t, nm__Row *r)
 		if (r->col + need + fixed > r->w) break;
 		nm__kb(r, t, k[i].k, k[i].l);
 	}
-	nm__kb(r, t, "S", "settings"); nm__kb(r, t, "?", "help"); nm__kb(r, t, "q", "quit");
+	{ char iv[16]; nm__ivl(iv, sizeof iv, u->refresh_ms); nm__kb(r, t, "+/-", iv); }
+	nm__kb(r, t, "?", "help"); nm__kb(r, t, "q", "quit");
 }
 
 /* ---- modal: a bordered box centred over the list area ------------------------------------------------------------------ */
@@ -571,6 +577,22 @@ static void nm__overlay(const nm_ui *u, const nm_theme *t, FILE *o)
 	}
 }
 
+/* row 1: the tab bar (the Settings tab draws the same one) */
+static void nm__tabbar(const nm_ui *u, const nm_theme *t, FILE *o)
+{
+	int tabs[NM_NTAB], nt = nm__tabs(u, tabs), w = u->w, shortn = w < 60;
+	nm__Row r;
+	nm__row_init(&r, w);
+	for (int i = 0; i < nt; i++) {
+		nm__row_raw(&r, tabs[i] == u->tab ? t->tabsel : t->tab);
+		nm__row_fmt(&r, -1, " %d %s ", i + 1, nm__tabname(tabs[i], shortn));
+		nm__row_raw(&r, t->reset);
+		nm__row_add(&r, " ", -1);
+	}
+	if (w - r.col >= 11) { nm__row_pad(&r, w - 10); nm__row_raw(&r, t->title); nm__row_add(&r, "netman", -1); }
+	nm__row_emit(&r, t, o, 1);
+}
+
 #include "settings_tui.h"
 
 /* the right-hand part of a Wi-Fi row: tag, dBm, percent, saved flags - fixed width so the columns line up */
@@ -612,22 +634,16 @@ static void nm__wifi_row(const nm_ui *u, const nm_theme *t, nm__Row *r, const nm
 
 void nm_ui_render(const nm_ui *u, const nm_theme *t, FILE *o)
 {
-	int idx[NM_MAXNET], n = nm_ui_visible(u, idx, NM_MAXNET), rows = nm__rows(u), w = u->w, h = u->h, tabs[NM_NTAB], nt = nm__tabs(u, tabs);
+	int idx[NM_MAXNET], n, rows = nm__rows(u), w = u->w, h = u->h, tabs[NM_NTAB], nt = nm__tabs(u, tabs);
 	nm__Row r;
-	if (u->mode == NM_SETTINGS) { nm_sset_render(u, t, o); return; }
-	/* row 1: tabs */
-	nm__row_init(&r, w);
-	{
-		int shortn = w < 60;
-		for (int i = 0; i < nt; i++) {
-			nm__row_raw(&r, tabs[i] == u->tab ? t->tabsel : t->tab);
-			nm__row_fmt(&r, -1, " %d %s ", i + 1, nm__tabname(tabs[i], shortn));
-			nm__row_raw(&r, t->reset);
-			nm__row_add(&r, " ", -1);
-		}
-		if (w - r.col >= 11) { nm__row_pad(&r, w - 10); nm__row_raw(&r, t->title); nm__row_add(&r, "netman", -1); }
+	(void)tabs;
+	if (u->tab == NM_SET) {   /* the Settings tab draws its own screen under the same tab bar; the help popup may sit on top */
+		nm_sset_render(u, t, o);
+		if (u->mode == NM_HELP) nm__text_modal(u, t, o);
+		return;
 	}
-	nm__row_emit(&r, t, o, 1);
+	n = nm_ui_visible(u, idx, NM_MAXNET);
+	nm__tabbar(u, t, o);
 	/* row 2: the header - what is on every tab: wifi / bt status, hostname, default route, ip, dns, network score.
 	 * Segments are placed by priority (the current tab's own status first); one that does not fit whole is dropped. */
 	nm__row_init(&r, w);
@@ -780,7 +796,7 @@ void nm_ui_render(const nm_ui *u, const nm_theme *t, FILE *o)
 			nm__row_raw(&r, t->dim);
 			if (u->tab == NM_VPN && u->loaded[NM_VPN] && !u->filter[0]) nm__row_fmt(&r, -1, "  no VPN profiles in %s", u->vpndir);
 			else if (nm__entlike(u) && u->loaded[u->tab] && !u->filter[0]) nm__row_add(&r, u->tab == NM_TOR ? "  tor: no status (netman tor status)" : u->tab == NM_SSH ? "  no ssh profiles (netman ssh save NAME host=...)" : u->tab == NM_MESH ? "  no mesh profiles (netman mesh save NAME kind=...)" : u->tab == NM_BOND ? "  no bonds (netman bond add NAME SLAVE...)" : u->tab == NM_TUN ? "  no tunnels (netman tunnel save NAME kind=...)" : "  no bonds, bridges, vlans, uplinks or licences (netman ent save ...)", -1);
-			else nm__row_add(&r, u->filter[0] || u->secf ? "  nothing matches the filter" : u->loaded[u->tab] ? "  nothing found (r to refresh)" : "  loading...", -1);
+			else nm__row_add(&r, u->filter[0] || u->secf ? "  nothing matches the filter" : u->loaded[u->tab] ? "  nothing found" : "  loading...", -1);
 		} else if (n == 0 && i <= 3 && u->tab == NM_VPN && u->loaded[NM_VPN] && !u->filter[0]) {
 			static const char *const hint[] = { "", "  import one:  netman vpn import FILE   (WireGuard .conf / OpenVPN .ovpn)", "  or copy it there yourself (root-owned, mode 0600)", "  other directory: env NETMAN_VPN_CONF_DIR" };
 			nm__row_raw(&r, t->dim);
@@ -906,6 +922,9 @@ static int nm__child_exit(int rc)
 	_exit(0);
 }
 
+static int nm__bg;                 /* 1 while a background auto-refresh runs: no busy modal, keys are queued instead of read as "cancel" */
+static int nm__pend[64], nm__npend; /* keys typed during such a refresh, handled by the main loop afterwards */
+
 static int nm__wait(void)
 {
 	nm_ui *u = nm__kui;
@@ -914,9 +933,11 @@ static int nm__wait(void)
 	int status, rc = 1, killed = 0;
 	nm__co = nm__ce = NULL;
 	if (nm__pfd < 0) { nm__ce = strdup("could not start a worker"); return 1; }
-	u->busy = 1; u->spin = 0;
-	snprintf(u->blabel, sizeof u->blabel, "%s", nm__klabel);
-	if (nm__redraw && nm__raw_on) nm__redraw(u);
+	if (!nm__bg) {
+		u->busy = 1; u->spin = 0;
+		snprintf(u->blabel, sizeof u->blabel, "%s", nm__klabel);
+		if (nm__redraw && nm__raw_on) nm__redraw(u);
+	}
 	for (;;) {
 		struct pollfd p[2] = { { nm__pfd, POLLIN, 0 }, { 0, POLLIN, 0 } };
 		int pr = poll(p, nm__raw_on ? 2 : 1, 80);
@@ -933,14 +954,15 @@ static int nm__wait(void)
 		}
 		if (pr > 0 && nm__raw_on && (p[1].revents & POLLIN) && !killed) {
 			int k = nm__read_key();
-			if (k == NM_K_ESC || k == 3) { kill(nm__kid, SIGKILL); killed = nm__cancelled = 1; }
+			if (nm__bg) { if (k > 0 && nm__npend < 64) nm__pend[nm__npend++] = k; }
+			else if (k == NM_K_ESC || k == 3) { kill(nm__kid, SIGKILL); killed = nm__cancelled = 1; }
 		}
-		if (pr <= 0) { u->spin++; if (nm__redraw && nm__raw_on) nm__redraw(u); }
+		if (pr <= 0 && !nm__bg) { u->spin++; if (nm__redraw && nm__raw_on) nm__redraw(u); }
 	}
 	close(nm__pfd);
 	nm__pfd = -1;
 	while (waitpid(nm__kid, &status, 0) < 0 && errno == EINTR) {}
-	u->busy = 0;
+	if (!nm__bg) u->busy = 0;
 	if (killed) { free(buf); nm__ce = strdup("cancelled"); return 1; }
 	if (len >= 3 * sizeof(unsigned)) {
 		unsigned hdr[3];
@@ -1219,7 +1241,7 @@ static void nm__keyof(const nm_ui *u, char *keep, size_t n)
 	if (s < c) nm__copy(keep, n, u->tab == NM_WIFI ? nm__hkey(&u->nets[idx[s]]) : u->tab == NM_BT ? u->devs[idx[s]].addr : u->tab == NM_ETH ? u->ifs[idx[s]].f.name : nm__entlike(u) ? u->ents[idx[s]].name : u->vpns[idx[s]].name);
 }
 
-static int nm__scan_req;   /* set only by the `r` key: everything else reads cached scan results */
+static int nm__scan_req;   /* set by the auto-refresh when an active Wi-Fi scan is due (every 30 s); everything else reads cached scan results */
 
 static void nm__seen_note(nm_ui *u);
 static void nm__roam_note(nm_ui *u, const char *ssid, const char *bssid);
@@ -1227,6 +1249,7 @@ static void nm__roam_note(nm_ui *u, const char *ssid, const char *bssid);
 void nm_refresh(nm_ui *u)
 {
 	char keep[100];
+	if (u->tab == NM_SET) return;
 	nm__keyof(u, keep, sizeof keep);
 	if (u->tab == NM_WIFI) {
 		nm_net known[NM_MAXNET];
@@ -1887,6 +1910,21 @@ static void nm__simple_bt(nm_ui *u, const char *action)
 
 static void nm__move(nm_ui *u, int d) { u->sel[u->tab] += d; nm__clamp(u); }
 
+/* + / -: the auto-refresh interval, in steps (like btop's). Saved to the user config so it is the same next time. */
+static const int nm__ivl_steps[] = { 500, 1000, 2000, 3000, 5000, 10000, 30000, 60000 };
+static void nm__ivl_step(nm_ui *u, int dir)   /* dir +1 = refresh faster (shorter interval) */
+{
+	int n = (int)(sizeof nm__ivl_steps / sizeof *nm__ivl_steps), at = 0;
+	char path[512], val[16], err[300];
+	for (int i = 0; i < n; i++) if (nm__ivl_steps[i] <= u->refresh_ms) at = i;
+	at -= dir;
+	if (at < 0) at = 0;
+	if (at >= n) at = n - 1;
+	u->refresh_ms = nm__ivl_steps[at];
+	snprintf(val, sizeof val, "%d", u->refresh_ms);
+	if (netman_config_user_path(path, sizeof path)) (void)netman_config_set_file(path, "tui.refresh_ms", val, err, sizeof err);   /* not saved (no HOME, read-only): the interval still holds for this session */
+}
+
 static void nm__switch(nm_ui *u, int tab)
 {
 	int tabs[NM_NTAB], nt = nm__tabs(u, tabs), at = 0;
@@ -1894,8 +1932,10 @@ static void nm__switch(nm_ui *u, int tab)
 	if (tab >= 0 && tab < NM_NTAB && u->en[tab] && tab == u->tab) return;
 	u->filter[0] = 0;
 	u->msg[0] = 0;
+	if (u->tab == NM_SET && tab != NM_SET) nm__ss_leave();
 	u->tab = tab;
 	(void)at;
+	if (tab == NM_SET) { nm__ss_enter(u); return; }
 	if (!u->loaded[u->tab]) nm_refresh(u);
 	nm__clamp(u);
 }
@@ -1960,8 +2000,9 @@ static void nm__ui_key0(nm_ui *u, int key)
 	case NM_K_PGUP: nm__move(u, -nm__rows(u)); break;
 	case 'g': case NM_K_HOME: u->sel[u->tab] = 0; nm__clamp(u); break;
 	case 'G': case NM_K_END: u->sel[u->tab] = 1 << 20; nm__clamp(u); break;
+	case '+': case '=': nm__ivl_step(u, 1); break;
+	case '-': case '_': nm__ivl_step(u, -1); break;
 	case '/': u->mode = NM_FILTER; u->masked = 0; u->inlen = (int)strlen(u->filter); nm__copy(u->in, sizeof u->in, u->filter); break;
-	case 'r': nm__scan_req = 1; nm_refresh(u); nm__scan_req = 0; break;
 	case 'i': nm_info_open(u); break;
 	case NM_K_ENTER: nm__enter(u); break;
 	default:
@@ -2035,9 +2076,19 @@ static void nm__big_build(nm_ui *u)
 void nm_ui_key(nm_ui *u, int key)
 {
 	int was = u->mode;
-	if (was == NM_SETTINGS) { nm_sset_key(u, key); return; }
+	if (u->tab == NM_SET && was == NM_NORMAL) {   /* the Settings tab: its own keys, except the ones every tab shares (tab, 1-5, q, ?) */
+		const nm_sset *s = &nm__ss;
+		if (!s->editing && !s->typing && key != NM_K_MOUSE) {
+			if (key == NM_K_TAB) { nm__cycle(u, 1); return; }
+			if (key == NM_K_BTAB) { nm__cycle(u, -1); return; }
+			if (key == 'q' || key == 3) { u->quit = 1; return; }
+			if (key == '?') { u->mode = NM_HELP; u->hoff = 0; return; }
+			if (key >= '1' && key <= '5') { nm__ui_key0(u, key); return; }
+		}
+		nm_sset_key(u, key);
+		return;
+	}
 	if (key == NM_K_MOUSE) return;
-	if (was == NM_NORMAL && key == 'S') { nm__ss_open(u); return; }
 	if (was == NM_NORMAL && key == 'I') { u->big = !u->big; u->bigoff = 0; if (u->big) nm__big_build(u); return; }
 	if (u->big && was == NM_NORMAL) {
 		int inner = nm__rows(u), max = u->ndl - inner > 0 ? u->ndl - inner : 0;
@@ -2050,7 +2101,7 @@ void nm_ui_key(nm_ui *u, int key)
 		char keep[100], now[110];
 		nm__keyof(u, keep, sizeof keep);
 		snprintf(now, sizeof now, "%d:%s", u->tab, keep);
-		if (was != NM_NORMAL || key == 'r' || key == NM_K_ENTER || strcmp(now, u->bigkey)) { if (strcmp(now, u->bigkey)) u->bigoff = 0; nm__big_build(u); }
+		if (was != NM_NORMAL || key == NM_K_ENTER || strcmp(now, u->bigkey)) { if (strcmp(now, u->bigkey)) u->bigoff = 0; nm__big_build(u); }
 	}
 }
 
@@ -2252,6 +2303,7 @@ static void nm__apply_cfg(nm_ui *u)
 	u->en[NM_WIFI] = nc_enabled("wifi"); u->en[NM_ETH] = nc_enabled("net"); u->en[NM_BT] = nc_enabled("bluetooth"); u->en[NM_VPN] = nc_enabled("vpn"); u->en[NM_ENT] = nc_enabled("enterprise");
 	u->en[NM_TOR] = nc_enabled("tor"); u->en[NM_SSH] = nc_enabled("ssh"); u->en[NM_MESH] = nc_enabled("mesh"); u->en[NM_BOND] = nc_enabled("bonding"); u->en[NM_TUN] = nc_enabled("tunnel");
 	u->rssi_good = netman_config_int(c, NC_WIFI_RSSI_GOOD); u->rssi_ok = netman_config_int(c, NC_WIFI_RSSI_OK); u->rssi_weak = netman_config_int(c, NC_WIFI_RSSI_WEAK);
+	u->refresh_ms = netman_config_int(c, NC_TUI_REFRESH_MS);
 	{
 		const char *uni = netman_config_str(c, NC_TUI_UNICODE);
 		int utf = !strcmp(uni, "yes") || (!strcmp(uni, "auto") && nm__utf_on);
@@ -2260,12 +2312,39 @@ static void nm__apply_cfg(nm_ui *u)
 	for (int i = 0; i < NM_NTAB; i++) if (!u->en[i]) u->loaded[i] = 0;
 }
 
+static long long nm__now_ms(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000; }
+
+/* the timer tick: re-read the current tab. Wi-Fi reads the cached results every tick and asks the radio for a real scan every 30 s;
+ * the other tabs read their sources (cheap local reads and short workers). Settings has nothing to refresh. */
+static void nm__auto_refresh(nm_ui *u)
+{
+	static long long last_scan;
+	long long now = nm__now_ms();
+	char keep[100], msg[sizeof u->msg];
+	if (u->tab == NM_SET) return;
+	if (!last_scan) last_scan = now;   /* the TUI scanned once on entry */
+	memcpy(msg, u->msg, sizeof msg);   /* a background refresh must not wipe the feedback of the user's last action */
+	if (u->tab == NM_WIFI) {
+		if (now - last_scan >= 30000) { nm__scan_req = 1; last_scan = now; }
+		nm_refresh(u);
+		nm__scan_req = 0;
+	} else if (u->tab == NM_ETH || nm__entlike(u)) {
+		nm__keyof(u, keep, sizeof keep);
+		if (u->tab == NM_ETH) nm__eth_refresh(u); else nm__ent_refresh(u);
+		nm__keep_sel(u, keep);
+	} else nm_refresh(u);
+	if (!u->msg[0] && msg[0]) memcpy(u->msg, msg, sizeof msg);
+	if (u->big) nm__big_build(u);
+}
+
 static int nc_tui(void)
 {
 	struct termios raw;
 	struct sigaction sa;
 	const char *loc, *uni = netman_config_str(&nc_cfg, NC_TUI_UNICODE), *th = netman_config_str(&nc_cfg, NC_TUI_THEME);
 	int utf, utf_auto, ntab = 0;
+	long long last_ref;   /* when the current tab was last refreshed (ms) */
+	time_t last_hdr;
 	if (!isatty(0) || !isatty(1)) { fputs("netman: the TUI needs a terminal\n", stderr); return 1; }
 	loc = getenv("LC_ALL"); if (!loc || !*loc) loc = getenv("LC_CTYPE"); if (!loc || !*loc) loc = getenv("LANG");
 	utf_auto = loc && (strcasestr(loc, "utf-8") || strcasestr(loc, "utf8"));
@@ -2274,6 +2353,7 @@ static int nc_tui(void)
 	nm__utf_on = utf_auto;
 	nm_ui_init(&nm__ui, 80, 24);
 	nm__ui.en[NM_WIFI] = nc_enabled("wifi"); nm__ui.en[NM_ETH] = nc_enabled("net"); nm__ui.en[NM_BT] = nc_enabled("bluetooth"); nm__ui.en[NM_VPN] = nc_enabled("vpn"); nm__ui.en[NM_ENT] = nc_enabled("enterprise"); nm__ui.en[NM_TOR] = nc_enabled("tor"); nm__ui.en[NM_SSH] = nc_enabled("ssh"); nm__ui.en[NM_MESH] = nc_enabled("mesh"); nm__ui.en[NM_BOND] = nc_enabled("bonding"); nm__ui.en[NM_TUN] = nc_enabled("tunnel");
+	nm__ui.refresh_ms = netman_config_int(&nc_cfg, NC_TUI_REFRESH_MS);
 	nm__ui.rssi_good = netman_config_int(&nc_cfg, NC_WIFI_RSSI_GOOD); nm__ui.rssi_ok = netman_config_int(&nc_cfg, NC_WIFI_RSSI_OK); nm__ui.rssi_weak = netman_config_int(&nc_cfg, NC_WIFI_RSSI_WEAK);
 	for (int i = 0; i < NM_NTAB; i++) if (nm__ui.en[i]) { if (!ntab) nm__ui.tab = i; ntab++; }
 	tcgetattr(0, &nm__saved);
@@ -2295,25 +2375,27 @@ static int nc_tui(void)
 	if (ntab) nm_refresh(&nm__ui);
 	nm__hdr_refresh(&nm__ui);
 	nm__score_start(&nm__ui);
+	last_ref = nm__now_ms(); last_hdr = time(NULL);
 	while (!nm__ui.quit) {
 		int k;
 		if (nm__winch) { nm__winch = 0; nm__size(&nm__ui); nm__clamp(&nm__ui); if (write(1, "\x1b[2J", 4)) {} }
 		nm__paint(&nm__ui);
-		/* wake up every second: re-read the header, the Ethernet counters, and collect a finished score child */
+		if (nm__npend > 0) { int pk = nm__pend[0]; memmove(nm__pend, nm__pend + 1, (size_t)(--nm__npend) * sizeof nm__pend[0]); nm_ui_key(&nm__ui, pk); continue; }
+		/* wake up when the next refresh is due (or after a second at the latest, for the header and the score) */
 		{
 			struct pollfd pf[2] = { { 0, POLLIN, 0 }, { nm__sc_fd, POLLIN, 0 } };
-			int pr = poll(pf, nm__sc_fd >= 0 ? 2 : 1, 1000);
+			long long now = nm__now_ms(), due = last_ref + nm__ui.refresh_ms;
+			int wait = (int)(due - now), pr;
+			if (wait > 1000) wait = 1000;
+			if (wait < 0) wait = 0;
+			pr = poll(pf, nm__sc_fd >= 0 ? 2 : 1, wait);
 			if (pr < 0) continue;
 			if (nm__sc_fd >= 0 && (pf[1].revents & (POLLIN | POLLHUP))) { nm__score_collect(&nm__ui); continue; }
 			if (pr == 0) {
 				if (nm__ui.mode == NM_NORMAL && !nm__ui.busy) {
-					nm__hdr_refresh(&nm__ui);
+					if (time(NULL) != last_hdr) { last_hdr = time(NULL); nm__hdr_refresh(&nm__ui); }
 					if (nm__sc_fd < 0 && time(NULL) - nm__sc_t >= 10) nm__score_start(&nm__ui);
-					if (nm__ui.tab == NM_ETH || nm__entlike(&nm__ui)) {
-						char keep[100];
-						nm__keyof(&nm__ui, keep, sizeof keep); if (nm__ui.tab == NM_ETH) nm__eth_refresh(&nm__ui); else nm__ent_refresh(&nm__ui); nm__keep_sel(&nm__ui, keep);
-						if (nm__ui.big) nm__big_build(&nm__ui);
-					}
+					if (nm__now_ms() >= last_ref + nm__ui.refresh_ms) { nm__bg = 1; nm__auto_refresh(&nm__ui); nm__bg = 0; last_ref = nm__now_ms(); }
 				}
 				continue;
 			}

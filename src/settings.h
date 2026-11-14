@@ -6,7 +6,7 @@
  * nothing is typed twice; tests/settings_test.c fails when a key has no schema entry.
  *
  * The same data feeds: `netman settings ...` (CLI), `netman settings --dump-api` (JSON for a launcher or a panel), `netman settings schema`
- * (the pipe format of desktop's settings.schema: key|type|extra|apply|default|label), the TUI panel (key S), `netman help settings` and the
+ * (the pipe format of desktop's settings.schema: key|type|extra|apply|default|label), the TUI Settings tab, `netman help settings` and the
  * man page. Standalone: needs only config.h/config.c. Included by netman.c; tests link settings.c next to config.c.
  */
 #ifndef NETMAN_SETTINGS_H

@@ -876,7 +876,7 @@ static const nc_cmd nc_table[] = {
 	{ "config show", "", h_cfg_show, R_NEV, NULL, "every setting with its value and where it came from", "" },
 	{ "config check", "", h_cfg_check, R_NEV, NULL, "validate the config files and environment", "Errors are FILE:LINE with a did-you-mean for unknown keys." },
 	{ "config set", "SECTION.KEY VALUE", h_cfg_set, R_NEV, NULL, "edit the user config file (atomic, comments kept)", "" },
-	{ "settings", "", h_set_list, R_NEV, NULL, "the settings panel's data as a list: key, value, where it comes from, what it does (= settings list)", "The TUI panel is key S inside `netman -tui`. Everything below works on the same schema (src/settings.c)." },
+	{ "settings", "", h_set_list, R_NEV, NULL, "the settings panel's data as a list: key, value, where it comes from, what it does (= settings list)", "The TUI shows it as the Settings tab of `netman -tui`. Everything below works on the same schema (src/settings.c)." },
 	{ "settings list", "[SECTION|TAB] [--all]", h_set_list, R_NEV, NULL, "every setting: key, value, source (default/system/user/env), description", "Settings of a module that is switched off are left out; --all lists them. [restart] = needs a restart of the thing that reads it, [root] = acting on it needs root." },
 	{ "settings get", "KEY", h_set_get, R_NEV, NULL, "print the effective value of one setting", "" },
 	{ "settings set", "KEY VALUE", h_set_set, R_NEV, NULL, "validate and write one setting into the user file (atomic, comments kept)", "Same as config set, plus a note when the change needs a restart or an environment variable overrides it." },

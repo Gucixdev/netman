@@ -181,8 +181,9 @@ int main(void)
 	/* ---- tabs of disabled modules are hidden ---- */
 	u = mk(100, 24); u.en[NM_BT] = u.en[NM_VPN] = 0; render_text(&u);
 	CHECK(has("1 Wi-Fi") && has("2 Ethernet/IP") && !has("Bluetooth") && !has("VPN"), "disabled tabs hidden"); if (has("Bluetooth")) dump();
-	nm_ui_key(&u, '2'); CHECK(u.tab == NM_ETH, "2 -> second visible tab"); nm_ui_key(&u, 9); CHECK(u.tab == NM_WIFI, "tab wraps over the visible ones"); nm_ui_key(&u, '3'); CHECK(u.tab == NM_WIFI, "3 does nothing when only two are visible");
-	u.en[NM_WIFI] = u.en[NM_ETH] = 0; render_text(&u); CHECK(has("every module is switched off"), "all off: a message");
+	nm_ui_key(&u, '2'); CHECK(u.tab == NM_ETH, "2 -> second visible tab"); nm_ui_key(&u, 9); CHECK(u.tab == NM_SET, "tab goes on to the Settings tab (always present, last)"); nm_ui_key(&u, 9); CHECK(u.tab == NM_WIFI, "tab wraps over the visible ones");
+	nm_ui_key(&u, '4'); CHECK(u.tab == NM_WIFI, "4 does nothing when only three are visible"); nm_ui_key(&u, '3'); CHECK(u.tab == NM_SET, "3 = the Settings tab");
+	u.tab = NM_WIFI; u.en[NM_WIFI] = u.en[NM_ETH] = 0; render_text(&u); CHECK(has("Settings"), "all modules off: the Settings tab is still there");
 
 	/* ---- ethernet / vpn / bt rows ---- */
 	u = mk(100, 24); u.tab = NM_ETH; u.nifs = 1; strcpy(u.ifs[0].f.name, "enp1s0"); u.ifs[0].f.up = 1; u.ifs[0].f.carrier = 1; u.ifs[0].f.naddr = 1; strcpy(u.ifs[0].f.addr[0], "10.0.0.5/24"); strcpy(u.ifs[0].f.gw4, "10.0.0.1");

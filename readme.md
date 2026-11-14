@@ -18,7 +18,7 @@ for Wi-Fi and bluez for Bluetooth, plus own netlink/DHCP/DNS, WireGuard/OpenVPN,
     src/cli.h           the command table: dispatch, root flag, module, summary, help of every command (one source)
     src/help.c          `netman help [topic]`, the man page (`help --man` = src/netman.1) and the TUI key text (`nc_tui_help`, shown by `?`)
     src/config.c/.h     settings file + env (NC_KEYS table); src/netman.conf.example is documented and kept in sync by a test
-    src/settings.c/.h   the settings schema derived from NC_KEYS (`netman settings ...`); src/settings_tui.h is the `S` panel of the TUI
+    src/settings.c/.h   the settings schema derived from NC_KEYS (`netman settings ...`); src/settings_tui.h is the Settings tab of the TUI
     src/priv.h          when to re-run through sudo
     src/tui.h           the terminal UI
     src/daemon.c        `netman daemon`: the long-running D-Bus service, claims org.freedesktop.NetworkManager (never steals it from a running NM) and serves mods/nmapi.c
@@ -76,7 +76,7 @@ Tabs Wi-Fi | Ethernet/IP | Bluetooth | VPN | Enterprise (read-only, only with en
 - Wi-Fi rows: `lock-glyph  name  TAG  -52 dBm  96%  saved auto`. Hidden networks show `<hidden> BSSID`, control bytes are escaped, long/CJK names are
   cut by display cells with an ellipsis. Security is a lock plus a text tag (WPA2/WPA3/WEP/OPEN/802.1X); without Unicode it is `[*]` / `open`;
   OPEN gets a warning colour. Signal is numbers only, coloured by `wifi.rssi_good/ok/weak`; the connected (and selected) network also shows its last readings and a trend arrow.
-- `s` cycles sort (signal / name / secured first / open first), `o` the filter (all / only open / only secured), `/` filters by name, `r` rescans.
+- `s` cycles sort (signal / name / secured first / open first), `o` the filter (all / only open / only secured), `/` filters by name. There is no refresh key: every tab re-reads itself on its own, `+` / `-` change the interval (500 ms .. 60 s, saved as `tui.refresh_ms`; Wi-Fi does a real radio scan every 30 s).
 - `i` details: SSID, BSSIDs, security, channel/band, signal, noise, rates, saved/autoconnect, IP, gateway, DNS, lease, link speed, rx/tx, backend; for
   Bluetooth address, class, RSSI, paired/trusted/connected, battery, profiles.
 - Enter on a Wi-Fi row: saved networks connect at once; secured ones open a masked passphrase modal (network + security shown, tab shows/hides, a wrong
@@ -156,7 +156,7 @@ The individual commands, for running one:
     tests/priv_test.c (15), tests/config_test.c (45; src/config.c [src/netman.conf.example])
     tests/vpnmod_test.c (VPN module goldens, fake swanctl/openconnect, import samples in tests/vpn_samples, xl2tpd parses the config), tests/tor_test.c (torrc/nft goldens, fake control server, nft rules loaded in `unshare -Urn`: redirect, leak dropped, fail closed), tests/pty_tor (Tor tab + VPN types, 80x24 and 40x12), tests/pty_netlink (Enterprise tab, 80x24 and 40x12), tests/pty_vpn (real WireGuard in unshare -Urn, drives the VPN tab), tests/wifi_bt_test.c (75), net_test (+ `selftest` under unshare -Urn), vpn_test (+ live WireGuard peer edits under ns), fw_test, net_score_test (unshare -Urn)
 
-    tests/settings_test.c (schema consistency: every config key has an entry; 616 checks), tests/settings_cli_test (settings goldens, JSON validity, atomic writes, pick through a fake menu), tests/pty_settings (the S panel in tmux under `unshare -Urn`: keys, mouse, 80x24 and 40x12)
+    tests/settings_test.c (schema consistency: every config key has an entry; 616 checks), tests/settings_cli_test (settings goldens, JSON validity, atomic writes, pick through a fake menu), tests/pty_settings (the Settings tab in tmux under `unshare -Urn`: keys, mouse, 80x24 and 40x12)
 
     tests/nmapi_test (the D-Bus NetworkManager API served by `netman daemon`, 60 checks: a private dbus-daemon, a raw-wire client in tests/nmapi_raw_test.c, `unshare -Urnm`), tests/ssh_test.c, mesh_test.c, bonding_test.c, tunnel_test.c (fake ssh / ssh-keyscan / ip / batctl, real netlink in `unshare -Urn`), tests/pty_mods (the four tabs in the real TUI)
 

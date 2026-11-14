@@ -92,6 +92,7 @@
 	X(TUN_IP, "tunnel", "ip_bin", "cmd", "", "Absolute path of ip (iproute2), used for L2TPv3 only; the other kinds use netlink. Empty = from PATH.") \
 	X(TUI_THEME, "tui", "theme", "enum:default|mono|light", "default", "TUI colours.") \
 	X(TUI_UNICODE, "tui", "unicode", "enum:auto|yes|no", "auto", "Box drawing and glyphs. auto = by locale; no = plain ASCII.") \
+	X(TUI_REFRESH_MS, "tui", "refresh_ms", "int:500:60000", "2000", "How often the TUI re-reads the current tab (ms). Change it live with + and - in the TUI; Wi-Fi asks the radio for a real scan every 30 s.") \
 	X(PRIV_SUDO, "privileges", "sudo", "enum:auto|never|always", "auto", "When netman re-runs itself through sudo: auto = only when the command needs root, never, always.")
 
 enum {

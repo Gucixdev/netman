@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pty_settings - the Settings panel (key S) in the real TUI inside `unshare -Urn` (the host network is never touched; the config is a temp file).
+# pty_settings - the Settings tab (last tab of the real TUI, no shortcut key) in the real TUI inside `unshare -Urn` (the host network is never touched; the config is a temp file).
 # Checks: footer hint, panel opens, tabs (a module's tab only while it is enabled), toggling writes the file and applies live, enum cycling,
 # inline editing with a validation message, reset with d, search, mouse (SGR) click + wheel, "restart needed", 80x24 and 40x12, clean exit.
 set -u
@@ -29,14 +29,15 @@ lit() { $T send-keys -l -t t "$1"; sleep 0.5; }
 start() { $T kill-server 2>/dev/null; $T -u new-session -d -s t -x "$1" -y "$2" "NETMAN_CONFIG=$conf LANG=C.UTF-8 TERM=xterm-256color $work/nm -tui; echo EXIT:\$?; sleep 30"; sleep 2; }
 
 fresh; start 100 26
-has "S settings" "footer hint"
-keys S; has "netman settings" "panel title"; has "Modules" "Modules tab"; has "ssh.enabled" "module switches listed on Modules"
+has "2 Settings" "Settings is a tab of its own"; hasnt "S settings" "no shortcut key for it in the footer"
+has "2s" "footer shows the refresh interval"; keys +; has "1s" "+ shortens the interval"; infile 'refresh_ms *= *1000' "the interval is saved"
+keys -; keys -; has "3s" "- lengthens it (1s -> 2s -> 3s)"; infile 'refresh_ms *= *3000' "saved again"
+keys 2; has "Modules" "Modules tab"; has "ssh.enabled" "module switches listed on Modules"
 hasnt "Tor " "no Tor tab while tor is off"
 # toggle ssh.enabled on: cursor to ssh.enabled
 keys /; lit "ssh.enabled"; keys Enter; has "[ ] ssh.enabled" "found by search, unchecked"
 keys Space; has "[x] ssh.enabled" "toggled on in the panel"; infile 'enabled *= *yes' "written to the file"; infile 'keep this comment' "comment kept"
-keys Escape; has "SSH" "the SSH tab appears once ssh is enabled"
-keys Tab; keys Tab; has "SSH" "tab bar still shows SSH"
+has "SSH" "the SSH tab appears in the tab bar once ssh is enabled"
 # the SSH tab lists its keys; select ssh_bin through the search
 for i in 1 2 3 4 5 6 7 8; do snap | grep -q "known_hosts" && break; keys l; done
 has "known_hosts" "SSH tab lists its keys"
@@ -50,7 +51,7 @@ keys d; infile '^\[ssh\]' "section stays"; notinfile 'ssh_bin' "d resets (line r
 keys Escape; keys /; lit "tui.theme"; keys Enter; keys Space; infile 'theme *= *mono' "enum cycled and saved"; has "mono" "enum shown"
 keys Escape; keys /; lit "nmapi.refresh"; keys Enter; keys +; has "restart needed" "restart flag on a daemon setting"
 # mouse (SGR): wheel, click a tab, click a row, click the selected row again to act
-keys Escape; keys Escape; keys S; has "Modules" "panel reopened"
+keys 1; hasnt "Modules" "left the Settings tab"; keys BTab; has "Modules" "Settings tab reopened (last tab, shift-tab from the first)"
 click() { $T send-keys -l -t t $'\e[<0;'"$1;$2"'M'; sleep 0.3; $T send-keys -l -t t $'\e[<0;'"$1;$2"'m'; sleep 0.4; }
 $T send-keys -l -t t $'\e[<65;10;10M'; sleep 0.3; $T send-keys -l -t t $'\e[<64;10;10M'; sleep 0.3
 click 15 2; has "dhcp" "clicking the Network tab shows its rows"
@@ -60,10 +61,10 @@ keys q; keys q; has "EXIT:0" "clean exit"
 for size in "80 24" "40 12"; do
 	set -- $size
 	fresh; start "$1" "$2"
-	keys S; has "settings" "panel at $1x$2"; keys j; keys j; keys l
+	keys BTab; has "Modules" "Settings tab at $1x$2"; keys j; keys j; keys l
 	s=$(snap); wd=$(awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }' <<<"$s")
 	[ "$wd" -le "$1" ] && ok || no "no row wider than $1 at $1x$2" "$s"
-	has "esc close" "key bar at $1x$2"
+	has "quit" "key bar at $1x$2"
 	keys q; keys q; has "EXIT:0" "clean exit at $1x$2"
 done
 echo "pty_settings: $pass ok, $fail failed"

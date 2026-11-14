@@ -12,8 +12,8 @@ static const char *const nc_tui_help[] = {
 	"  tab / shift-tab, h l, 1-5   switch tab (tabs of modules disabled in config are hidden)",
 	"  j k, arrows, PgUp PgDn      move;  g G  first / last",
 	"  /                           filter by name",
-	"  r                           refresh / rescan",
-	"  S                           settings panel (see SETTINGS below)",
+	"  + -                         refresh interval of the tab: shorter / longer (500 ms .. 60 s, saved as tui.refresh_ms).",
+	"                              There is no refresh key: the tab re-reads itself every interval; Wi-Fi asks the radio for a real scan every 30 s",
 	"  i                           details popup for the selected row;  I  toggle the big \"all info\" view",
 	"                              (replaces the list; j k pick another row, PgUp PgDn scroll, esc / I close)",
 	"  ?                           this help;  q  quit",
@@ -40,14 +40,13 @@ static const char *const nc_tui_help[] = {
 	"  K        toggle the nftables kill switch;  i  details: endpoint, allowed ips, handshake age, transfer, split tunnel",
 	"  States: up, down, connecting, failed; locked = unreadable (run as root), untrusted = file must be root/self",
 	"  owned and not group/world writable. Creating tunnels needs root: with VPN profiles present the TUI asks sudo.",
-	"  r        refresh",
 	"ENTERPRISE (only with enterprise.enabled = yes)",
 	"  read-only status: bonds, bridges, vlans, uplinks (ECMP), tethering (when tether.enabled) and licences",
 	"  (when licence.enabled), from the saved .ent profiles and the live kernel state;  i  details of the selected",
 	"  row;  I  the same plus the raw profile text. Changes are made with  netman ent ... / licence ... / key ...",
-	"SETTINGS (key S: every netman.conf key, same data as `netman settings`)",
+	"SETTINGS (its own tab, last in the tab bar: every netman.conf key, same data as `netman settings`)",
 	"  tabs: Modules (the on/off switch of every module) then one tab per area; a module's tab exists only while it is enabled",
-	"  j k move;  h l, tab, 1-9 change tab;  / search all settings;  esc clears the search, then closes;  S or q close",
+	"  j k move;  h l change page;  tab / shift-tab / 1-5 change the main tab;  / search all settings;  esc clears the search;  q quit",
 	"  enter / space   toggle a yes/no, cycle a choice, edit text and numbers (enter saves, esc cancels, errors show as you type)",
 	"  + -  step a number or cycle a choice backwards;  e  edit any value as text;  d  back to the default (removes the line)",
 	"  mouse: click a tab or a row, click the selected row again to change it, wheel scrolls",
@@ -69,7 +68,7 @@ static const struct { const char *group, *text; } nc_group_notes[] = {
 	         "team is bonding: the kernel team driver is deprecated, so kind=team maps runner= (activebackup, lacp, loadbalance, broadcast, roundrobin) onto the bonding driver. "
 	         "Tethering share-out uses its own nft table `inet netman_tether` (firewall.h replaces `inet netman`, so the two never clobber each other); an accept there cannot override a drop in another table, so a strict firewall must allow the downstream interface itself. "
 	         "Changing commands need enterprise.enabled = yes." },
-	{ "settings", "the settings schema (src/settings.c) as commands: list, get, set, toggle, reset, check, a JSON API (--dump-api) and dmenu helpers (menu | dmenu | pick). The TUI panel on key S shows the same data. Writes go to ~/.config/netman/netman.conf only, atomically, comments kept." },
+	{ "settings", "the settings schema (src/settings.c) as commands: list, get, set, toggle, reset, check, a JSON API (--dump-api) and dmenu helpers (menu | dmenu | pick). The Settings tab of the TUI shows the same data. Writes go to ~/.config/netman/netman.conf only, atomically, comments kept." },
 	{ "licence", "licence files NAME.lic with expiry, the expiry check (exit 1 when anything expires soon), and hook-driven renewal. Switched by licence.enabled." },
 	{ "key", "WireGuard key rotation (NAME.key in enterprise.licence_dir). Switched by licence.enabled." },
 	{ "wol", "Wake-on-LAN magic packet. Switched by enterprise.enabled." },
@@ -98,7 +97,7 @@ static void nc_help_flags(FILE *o, int k)
 	if (nset_needs_root(k)) fputs("  [acting on it needs root]", o);
 }
 
-/* every setting, grouped by the tab of the settings panel (the schema in settings.c decides the grouping and the flags) */
+/* every setting, grouped by the page of the Settings tab (the schema in settings.c decides the grouping and the flags) */
 static void nc_help_config(FILE *o)
 {
 	fprintf(o, "settings (netman settings list|get|set|toggle|reset|check|menu|pick; netman config show; files /etc/netman/netman.conf and ~/.config/netman/netman.conf; env NETMAN_SECTION_KEY)\n");

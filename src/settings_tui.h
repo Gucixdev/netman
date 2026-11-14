@@ -1,10 +1,10 @@
-/* settings_tui.h - the Settings panel of the TUI (key S). Included by tui.h after the row helpers; one translation unit.
+/* settings_tui.h - the Settings tab of the TUI (the last tab, under the normal tab bar). Included by tui.h after the row helpers; one translation unit.
  *
  * Data comes from the schema (settings.c): tabs = schema tabs that have something to show, plus a first "Modules" tab that holds every
  * section's `enabled` switch. A module's own tab exists only while the module is enabled. Rows: checkbox for yes/no, value, source
  * (default / system / user / env), the one-line description and the details (default, range, flags) below the list.
- * Keys: j k arrows move, h l tab shift-tab 1-9 change tab, enter/space toggles or cycles or edits, - + step, e edit, d reset to default,
- * / search (all settings), r reload, esc/q/S close. The mouse works (SGR 1006): click a tab or a row, click the selected row again to act,
+ * Keys: j k arrows move, h l / arrows change the page (tab / shift-tab / 1-5 change the main tab), enter/space toggles or cycles or edits,
+ * - + step, e edit, d reset to default, / search (all settings), esc clears the search. The files are re-read each time the tab is selected. The mouse works (SGR 1006): click a tab or a row, click the selected row again to act,
  * wheel scrolls. Every change is written at once to the user config file (atomic, comments kept) and applied live where it is safe;
  * the schema's `restart` settings say "restart needed" instead.
  */
@@ -113,18 +113,20 @@ static void nm__ss_open(nm_ui *u)
 	}
 	nm__ss_tabs(s);
 	nm__ss_rows(s);
-	u->mode = NM_SETTINGS;
-	if (isatty(1) && write(1, "\x1b[?1000h\x1b[?1006h", 16)) { s->mouse_on = 1; }
+	(void)u;
 }
 
-static void nm__ss_close(nm_ui *u)
+/* the Settings tab was selected: (re)load the files, so edits made elsewhere show, and turn the mouse reporting on */
+static void nm__ss_enter(nm_ui *u)
+{
+	nm__ss_open(u);
+	if (isatty(1) && write(1, "\x1b[?1000h\x1b[?1006h", 16)) { nm__ss.mouse_on = 1; }
+}
+
+static void nm__ss_leave(void)
 {
 	if (nm__ss.mouse_on && write(1, "\x1b[?1006l\x1b[?1000l", 16)) {}
 	nm__ss.mouse_on = 0;
-	u->mode = NM_NORMAL;
-	if (!u->en[u->tab]) for (int i = NM_NTAB - 1; i >= 0; i--) if (u->en[i]) u->tab = i;
-	u->msg[0] = 0;
-	nm__clamp(u);
 }
 
 /* write KEY = VALUE; reload; say what happened */
@@ -278,8 +280,7 @@ static void nm_sset_key(nm_ui *u, int key)
 		return;
 	}
 	switch (key) {
-	case 'q': case 'S': case 3: nm__ss_close(u); break;
-	case NM_K_ESC: if (s->filter[0]) { s->filter[0] = 0; nm__ss_rows(s); } else nm__ss_close(u); break;
+	case NM_K_ESC: if (s->filter[0]) { s->filter[0] = 0; nm__ss_rows(s); } break;
 	case 'j': case NM_K_DOWN: nm__ss_move(s, 1, rows); break;
 	case 'k': case NM_K_UP: nm__ss_move(s, -1, rows); break;
 	case NM_K_PGDN: nm__ss_move(s, rows, rows); break;
@@ -288,7 +289,6 @@ static void nm_sset_key(nm_ui *u, int key)
 	case 'G': case NM_K_END: nm__ss_move(s, 1000, rows); break;
 	case 'l': case NM_K_RIGHT: case NM_K_TAB: nm__ss_tab(u, s->tab + 1); break;
 	case 'h': case NM_K_LEFT: case NM_K_BTAB: nm__ss_tab(u, s->tab - 1); break;
-	case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': if (key - '1' < s->nvt) nm__ss_tab(u, key - '1'); break;
 	case NM_K_ENTER: case ' ': nm__ss_act(u, 1); break;
 	case '+': case '=': nm__ss_step(u, 1); break;
 	case '-': nm__ss_step(u, -1); break;
@@ -299,7 +299,6 @@ static void nm_sset_key(nm_ui *u, int key)
 	}
 	case 'd': { int k = nm__ss_cur(s); if (k >= 0) nm__ss_reset(u, k); break; }
 	case '/': s->typing = 1; s->filter[0] = 0; nm__ss_rows(s); break;
-	case 'r': nm__ss_reload(u); nm__ss_msg(s, 0, "reloaded"); break;
 	default: break;
 	}
 }
@@ -314,13 +313,7 @@ static void nm_sset_render(const nm_ui *u, const nm_theme *t, FILE *o)
 	if (s->sel[sl] >= s->top[sl] + rows) s->top[sl] = s->sel[sl] - rows + 1;
 	if (s->top[sl] < 0) s->top[sl] = 0;
 	/* row 1: title */
-	nm__row_init(&r, w);
-	nm__row_raw(&r, t->title);
-	nm__row_add(&r, " netman settings", -1);
-	nm__row_raw(&r, t->dim);
-	if (w >= 50) { nm__row_add(&r, "  ", -1); nm__row_add(&r, s->path, w - r.col - 1); }
-	nm__row_raw(&r, t->reset);
-	nm__row_emit(&r, t, o, 1);
+	nm__tabbar(u, t, o);
 	/* row 2: tabs (scrolled so the current one is visible) or the search state */
 	nm__row_init(&r, w);
 	s->ntx = 0;
@@ -434,13 +427,13 @@ static void nm_sset_render(const nm_ui *u, const nm_theme *t, FILE *o)
 	if (s->editing) { nm__kb(&r, t, "enter", "save"); nm__kb(&r, t, "esc", "cancel"); }
 	else if (s->typing) { nm__kb(&r, t, "enter", "keep"); nm__kb(&r, t, "esc", "clear"); }
 	else {
-		static const nm__Key kk[] = { { "enter", "set" }, { "d", "default" }, { "/", "search" }, { "e", "edit" }, { "+-", "step" }, { "h/l", "tab" } };
+		static const nm__Key kk[] = { { "enter", "set" }, { "d", "default" }, { "/", "search" }, { "e", "edit" }, { "+-", "step" }, { "h/l", "page" } };
 		for (unsigned i = 0; i < sizeof kk / sizeof *kk; i++) {
 			int need = nm__cells(kk[i].k) + 1 + nm__cells(kk[i].l) + 2;
 			if (r.col + need + 9 > w) break;
 			nm__kb(&r, t, kk[i].k, kk[i].l);
 		}
-		nm__kb(&r, t, "esc", "close");
+		nm__kb(&r, t, "?", "help"); nm__kb(&r, t, "q", "quit");
 	}
 	nm__row_emit(&r, t, o, h);
 }

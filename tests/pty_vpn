@@ -36,7 +36,7 @@ iface_is() { # name present|absent
 keys() { $T send-keys -t t "$@"; sleep 0.6; }
 start() { # cols rows
 	$T kill-server 2>/dev/null
-	$T -u new-session -d -s t -x "$1" -y "$2" "NETMAN_VPN_CONF_DIR=$work/conf NETMAN_VPN_RUN_DIR=$work/run NETMAN_CONFIG=$work/c.conf LANG=C.UTF-8 TERM=xterm-256color $work/nm -tui; echo EXIT:\$?; sleep 30"
+	$T -u new-session -d -s t -x "$1" -y "$2" "NETMAN_TUI_REFRESH_MS=500 NETMAN_VPN_CONF_DIR=$work/conf NETMAN_VPN_RUN_DIR=$work/run NETMAN_CONFIG=$work/c.conf LANG=C.UTF-8 TERM=xterm-256color $work/nm -tui; echo EXIT:\$?; sleep 30"
 	sleep 2
 }
 
@@ -65,8 +65,8 @@ keys K
 has "default" "header: default route"; has "dns" "header: dns"
 # --- failure is visible: a profile that cannot come up ---
 printf '[Interface]\nPrivateKey = notbase64!!\nAddress = 10.9.0.3/32\n\n[Peer]\nPublicKey = x\nEndpoint = 127.0.0.1:1\nAllowedIPs = 0.0.0.0/0\n' >"$work/conf/bad.conf"; chmod 600 "$work/conf/bad.conf"
-keys r
-has "bad" "second profile appears after r"
+sleep 1.5
+has "bad" "second profile appears (auto-refresh)"
 keys g; keys Enter
 sleep 1
 s=$(snap); if grep -qiE 'fail|invalid|error|key' <<<"$s"; then ok; else no "a failing up must show an error" "$s"; fi
@@ -87,7 +87,7 @@ start 100 26; keys 2
 has "no VPN profiles in $work/conf" "empty list names the directory"; has "netman vpn import" "empty list names the import command"
 # --- a world-writable profile is flagged, not silently dropped ---
 mkwg "$work/conf/loose.conf"; chmod 666 "$work/conf/loose.conf"
-keys r
+sleep 1.5
 has "untrusted" "untrusted profile flagged"
 keys Enter
 has "chmod 600" "enter on it explains how to fix it"
