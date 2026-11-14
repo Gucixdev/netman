@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # nmapi_test - `netman daemon` (the NetworkManager D-Bus API) against real NM clients, on a private bus. Nothing real is touched:
 #   - a private dbus-daemon (tests/fakes.c) is the "system bus", with a fake iwd on it for the Wi-Fi backend
-#   - everything runs in `unshare -Urn`: own user + network namespace with dummy links eth0 (wired) and wlan0 (marked Wi-Fi by NETMAN_IFACE)
+#   - everything runs in `unshare -Urnm` (own user, network and mount namespace; /sys is re-mounted inside, so /sys/class/net shows the namespace's links, not the host's): own user + network namespace with dummy links eth0 (wired) and wlan0 (marked Wi-Fi by NETMAN_IFACE)
 #   - profiles and state go to a temp dir; the host's NetworkManager, iwd, DNS files and network are never involved
 # Clients: nmapi_raw_test (plain C on dbus.h) always; nmapi_libnm_test (libnm = the library nm-applet/nmcli are built on) when libnm's dev files AND tests/nmapi_libnm_test.c exist (the latter was never committed: skipped cleanly until written).
 set -u
@@ -9,7 +9,7 @@ cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 CC=${CC:-cc}
 common="-std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-format-truncation -O2"
-$CC $common -Isrc -Isrc/mods src/netman.c src/config.c src/mods/netlink.c src/mods/wol.c src/mods/tether.c src/mods/licence.c src/mods/wireguard.c src/mods/vpnmod.c src/mods/openvpn.c src/mods/ipsec.c src/mods/l2tp.c src/mods/openconnect.c src/mods/sstp.c src/mods/vpnimport.c src/mods/tor.c src/mods/ssh.c src/mods/mesh.c src/mods/bonding.c src/mods/tunnel.c -o "$work/netman" || exit 1
+CC="$CC" tools/cc -Wno-unused-function -Wno-format-truncation -o "$work/netman" || exit 1
 $CC $common -Isrc/mods tests/fakes.c -o "$work/fakes" || exit 1
 $CC $common -Isrc/mods tests/nmapi_raw_test.c -o "$work/raw" || exit 1
 libnm=0
@@ -26,6 +26,7 @@ printf '[net]\nstate_dir = %s/state\n' "$work" >"$work/netman.conf"
 cat >"$work/inner" <<INNER
 #!/usr/bin/env bash
 set -u
+mount -t sysfs sysfs /sys || { echo "cannot mount sysfs in the namespace"; exit 77; }
 ip link add eth0 type dummy && ip link add wlan0 type dummy || { echo "cannot create dummy links (no user namespaces?)"; exit 77; }
 ip link set lo up; ip link set eth0 up; ip link set wlan0 up
 export NETMAN_IFACE=wlan0 NETMAN_CONF_DIR=$work/profiles NETMAN_CONFIG=$work/netman.conf NMT_BUS="\$DBUS_SYSTEM_BUS_ADDRESS" NETMAN_STATE_DIR=$work/state
@@ -42,5 +43,5 @@ echo "== daemon log"; cat $work/daemon.log
 exit \$rc
 INNER
 chmod +x "$work/inner"
-nice -n 19 unshare -Urn "$work/fakes" "$work/log" "$work/inner"
+nice -n 19 unshare -Urnm "$work/fakes" "$work/log" "$work/inner"
 exit $?

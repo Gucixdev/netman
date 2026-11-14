@@ -1,0 +1,8 @@
+#!/bin/sh
+# tools/cc [cc flags...] -o OUT - build the netman binary. The ONE place that knows the file list: src/sources (paths relative to the repo root).
+# ./run and every test script call this, so moving or adding a module means editing src/sources and nothing else.
+# -Wno-format-truncation: the snprintf calls into fixed buffers cut on purpose (every buffer is bounded; nothing reads past it).
+# $CC picks the compiler (default cc). Extra flags (e.g. -Wno-format-truncation, -DNETMAN_X) come first.
+root=$(dirname "$(readlink -f "$0")")/..
+cd "$root" || exit 1
+exec "${CC:-cc}" -std=gnu11 -Wall -Wextra -O2 -Wno-format-truncation -Isrc -Isrc/mods "$@" $(cat src/sources)

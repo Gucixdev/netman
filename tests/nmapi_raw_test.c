@@ -197,7 +197,7 @@ int main(void)
 		CHECK(home, "an access point with Ssid 'Home' (ay)");
 	}
 	CHECK(get_u(aps[0], NM ".AccessPoint", "Strength") <= 100, "AccessPoint.Strength");
-	CHECK(call(wdev, NM ".Device.Wireless", "RequestScan", "a{sv}", (b.n = 0, netman_dbus_align(&b, 4), netman_dbus_put_u32(&b, 0), &b)) == 0, "RequestScan");
+	CHECK(call(wdev, NM ".Device.Wireless", "RequestScan", "a{sv}", (b.n = 0, netman_dbus_align(&b, 4), netman_dbus_put_u32(&b, 0), netman_dbus_align(&b, 8), &b)) == 0, "RequestScan")   /* an empty a{sv} still pads to 8 after its length; without it dbus-daemon drops the client */;
 
 	puts("object manager");
 	CHECK(call("/org/freedesktop", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects", NULL, NULL) == 0 && !strcmp(rep.sig, "a{oa{sa{sv}}}"), "GetManagedObjects signature");
