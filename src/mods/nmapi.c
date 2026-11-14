@@ -64,6 +64,16 @@ static void na_send_err(int fd, const netman_dbus_Msg *req, const char *name, co
 	netman_dbus_send_msg(fd, &out);
 	free(out.b); free(b.b);
 }
+
+/* A method the real NetworkManager has but netman does not do answers NotSupported; a name NetworkManager does not have at all is a plain
+ * UnknownMethod, like any D-Bus service. xml is the real interface XML (nmapi_xml.h) of the object the call went to. */
+static void na_send_unimpl(int fd, const netman_dbus_Msg *req, const char *xml, const char *mem)
+{
+	char pat[96];
+	snprintf(pat, sizeof pat, "<method name=\"%s\"", mem);
+	if (strstr(xml, pat)) na_send_err(fd, req, NMI ".NotSupported", "this NetworkManager method is not implemented by netman");
+	else na_send_err(fd, req, "org.freedesktop.DBus.Error.UnknownMethod", "no such method on this interface");
+}
 static void na_send_signal(int fd, const char *path, const char *iface, const char *member, const char *sig, const na_buf *body)
 {
 	na_buf out = {0};
@@ -1578,7 +1588,7 @@ static int na_dispatch(int fd, const netman_dbus_Msg *m)
 		if (!strcmp(mem, "GetLogging")) { na_buf b = {0}; netman_dbus_put_str(&b, "INFO"); netman_dbus_put_str(&b, "DEFAULT"); na_reply(fd, m, "ss", &b); free(b.b); return 1; }
 		if (!strcmp(mem, "Reload")) { na_reply_empty(fd, m); na_refresh(1); na_flush(fd); return 1; }
 		if (!strcmp(mem, "SetLogging")) { na_reply_empty(fd, m); return 1; }
-		na_send_err(fd, m, NMI ".NotSupported", "this NetworkManager method is not implemented by netman");
+		na_send_unimpl(fd, m, nmx_Manager, mem);
 		return 1;
 	}
 	if (kind == K_AGENT && !strcmp(iface, NMI ".AgentManager")) {   /* secret agents are accepted but never asked: secrets come from the connection itself */
@@ -1618,14 +1628,14 @@ static int na_dispatch(int fd, const netman_dbus_Msg *m)
 		}
 		if (!strcmp(mem, "ReloadConnections")) { na_buf b = {0}; netman_dbus_put_u32(&b, 1); na_reply(fd, m, "b", &b); free(b.b); na_refresh(1); na_flush(fd); return 1; }
 		if (!strcmp(mem, "SaveHostname")) { na_reply_empty(fd, m); return 1; }
-		na_send_err(fd, m, NMI ".NotSupported", "this NetworkManager method is not implemented by netman");
+		na_send_unimpl(fd, m, nmx_Settings, mem);
 		return 1;
 	}
 	if (kind == K_CONN && !strcmp(iface, NMI ".Settings.Connection")) {
 		na_conn *cn = &na_conns[slot];
 		if (!strcmp(mem, "GetSettings") || !strcmp(mem, "GetSecrets")) {
 			na_buf b = {0};
-			na_settings_body(&b, cn, mem[3] == 'S' && mem[4] == 'e');
+			na_settings_body(&b, cn, !strcmp(mem, "GetSecrets"));   /* "GetSettings" shares the prefix "GetSe" with it: never test single characters */
 			na_reply(fd, m, "a{sa{sv}}", &b); free(b.b);
 			return 1;
 		}
