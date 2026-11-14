@@ -1,5 +1,5 @@
 /* vpnmod_test.c - the VPN modules (ipsec, l2tp, openconnect, sstp) and `vpn import`, with fake client binaries. Nothing real is touched.
- * build:  cc -std=gnu11 -Wall -Wextra -O1 -Isrc -Isrc/mods -o /tmp/vpnmod_test tests/vpnmod_test.c src/mods/vpnmod.c src/mods/openvpn.c src/mods/ipsec.c src/mods/l2tp.c src/mods/openconnect.c src/mods/sstp.c src/mods/vpnimport.c ; run /tmp/vpnmod_test
+ * build:  cc -std=gnu11 -Wall -Wextra -O1 -Isrc -Isrc/mods -Isrc/mods/vpn -o /tmp/vpnmod_test tests/vpnmod_test.c src/mods/vpn/vpnmod.c src/mods/vpn/openvpn.c src/mods/ipsec.c src/mods/l2tp.c src/mods/openconnect.c src/mods/sstp.c src/mods/vpn/vpnimport.c ; run /tmp/vpnmod_test
  * run from the netman/ directory. UPDATE=1 rewrites the golden files. Real swanctl/xl2tpd/openconnect: SKIP when absent (live part untested here). */
 #define _GNU_SOURCE
 #include "vpnmod.h"

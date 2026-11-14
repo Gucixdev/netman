@@ -2,7 +2,7 @@
 /* bonding_test.c - src/mods/bonding.c: the `bond` front end over netlink.c. Status parsing runs against a FAKE sysfs tree
  * (netman_nl_sys); the real bonds are built with rtnetlink in the test's OWN user+net namespace (host network never touched).
  * `ip` is used only to cross-check. SKIP when the kernel will not make a bond there.
- * build (from netman/):  cc -std=gnu11 -O1 -Isrc/mods -o /tmp/bonding_test tests/bonding_test.c src/mods/bonding.c src/mods/{netlink,wol,tether,licence}.c */
+ * build (from netman/):  cc -std=gnu11 -O1 -Isrc/mods -Isrc/mods/vpn -o /tmp/bonding_test tests/bonding_test.c src/mods/bonding.c src/mods/{netlink,wol,tether,licence}.c */
 #define NETMAN_NET_IMPLEMENTATION
 #include "../src/mods/net.h"
 #include "../src/mods/bonding.h"

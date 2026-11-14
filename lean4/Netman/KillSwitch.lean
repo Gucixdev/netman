@@ -1,4 +1,4 @@
-/-! Kill switch ruleset (`nmbv_killswitch` in src/mods/vpn.h): nft table `inet nmbv_ks`,
+/-! Kill switch ruleset (`nmbv_killswitch` in src/mods/vpn/vpn.h): nft table `inet nmbv_ks`,
     output chain, policy drop. First matching rule decides, otherwise the policy applies. -/
 namespace Netman.KillSwitch
 

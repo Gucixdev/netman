@@ -1,7 +1,7 @@
 /* tor_test.c - tor: torrc and nft goldens, the control-port client against a fake control server (unix + TCP, cookie auth,
  * bad cookie), and (under `unshare -Urn`, with nft) the ruleset loaded for real: redirect, UDP leak dropped, fail closed without a listener.
  * REAL TOR IS NOT TESTED (not installed here).  build, from netman/:
- *   cc -std=gnu11 -Wall -Wextra -O1 -Isrc/mods -o /tmp/tor_test tests/tor_test.c src/mods/tor.c src/mods/vpnmod.c src/mods/openvpn.c src/mods/ipsec.c src/mods/l2tp.c src/mods/openconnect.c src/mods/sstp.c
+ *   cc -std=gnu11 -Wall -Wextra -O1 -Isrc/mods -Isrc/mods/vpn -o /tmp/tor_test tests/tor_test.c src/mods/tor.c src/mods/vpn/vpnmod.c src/mods/vpn/openvpn.c src/mods/ipsec.c src/mods/l2tp.c src/mods/openconnect.c src/mods/sstp.c
  *   unshare -Urn /tmp/tor_test        UPDATE=1 rewrites tests/tor_golden/* */
 #define _GNU_SOURCE
 #include "tor.h"

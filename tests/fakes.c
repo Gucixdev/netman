@@ -1,6 +1,6 @@
 /* fakes - a stateful fake iwd + bluez on a private dbus-daemon, for driving the TUI (or the CLI) without touching anything real.
  *
- *   cc -std=gnu11 -Wall -Wextra -O2 -Isrc/mods -o /tmp/nm_fakes fakes.c
+ *   cc -std=gnu11 -Wall -Wextra -O2 -Isrc/mods -Isrc/mods/vpn -o /tmp/nm_fakes fakes.c
  *   /tmp/nm_fakes LOGDIR COMMAND [ARGS...]     runs COMMAND with DBUS_SYSTEM_BUS_ADDRESS pointing at the fake; every call the fake receives is
  *                                              appended to LOGDIR/calls.log; exits with COMMAND's status
  *

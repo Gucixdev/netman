@@ -1,6 +1,6 @@
 /* wifi.h + btth.h tests - no root, no hardware, nothing real is touched.
  *
- *   cc -std=gnu11 -Wall -Wextra -O2 -Isrc/mods -o /tmp/nm_wifi_bt tests/wifi_bt_test.c && /tmp/nm_wifi_bt
+ *   cc -std=gnu11 -Wall -Wextra -O2 -Isrc/mods -Isrc/mods/vpn -o /tmp/nm_wifi_bt tests/wifi_bt_test.c && /tmp/nm_wifi_bt
  *
  * 1. unit: message encode/decode round trip, WPS event classification, agent replies over a socketpair
  * 2. fake wpa_supplicant: a unix datagram socket in a temp dir (NETMAN_WPA_DIR) answering ATTACH / WPS_* / *_NETWORK and sending events

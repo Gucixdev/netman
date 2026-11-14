@@ -1,7 +1,7 @@
 /* nmapi_raw_test.c - a plain-C D-Bus client (netman's own dbus.h, no libnm, no GLib) driving `netman daemon` the way NetworkManager clients do.
  *
  *   run it through tests/nmapi_test (private bus, fake iwd, user+net namespace with dummy links eth0 and wlan0); needs NMT_BUS = the bus address.
- *   cc -std=gnu11 -Wall -Wextra -O2 -Isrc/mods -o /tmp/nmapi_raw_test tests/nmapi_raw_test.c
+ *   cc -std=gnu11 -Wall -Wextra -O2 -Isrc/mods -Isrc/mods/vpn -o /tmp/nmapi_raw_test tests/nmapi_raw_test.c
  *
  * Covers: name ownership, the real introspection XML, GetManagedObjects, Properties.Get/GetAll, GetDevices/GetAllDevices, access points from the scan,
  * AddConnection + GetSettings (a{sa{sv}} shape) + ListConnections, ActivateConnection on a static Ethernet profile, AddAndActivateConnection on Wi-Fi

@@ -19,7 +19,7 @@ fin() { # name rc
 if ! command -v unshare >/dev/null 2>&1; then echo "tests/run: unshare is missing; only the pure tests can run" >&2; fi
 unit() { # name [cc flags and extra sources...] ; runs from the repo root (goldens are tests/...); WD=tests for vpn_test (reads ./vpn_testdata)
 	local n=$1 rc; shift
-	if ! cc -std=gnu11 -O1 -Wno-format-truncation -Isrc -Isrc/mods -o "$O/$n" "tests/$n.c" "$@" 2>"$O/$n.err"; then head -5 "$O/$n.err" >&2; fin "$n" 1; return; fi
+	if ! cc -std=gnu11 -O1 -Wno-format-truncation -Isrc -Isrc/mods -Isrc/mods/vpn -o "$O/$n" "tests/$n.c" "$@" 2>"$O/$n.err"; then head -5 "$O/$n.err" >&2; fin "$n" 1; return; fi
 	( cd "${WD:-.}" && unshare -Urnm sh -c 'mount -t sysfs sysfs /sys 2>/dev/null; exec "$0" "$@"' "$O/$n" ${ARGS:-} >"$O/$n.out" 2>&1 ); rc=$?
 	[ "$rc" != 0 ] && tail -8 "$O/$n.out" >&2
 	fin "$n" "$rc"

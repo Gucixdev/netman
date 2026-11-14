@@ -2,7 +2,7 @@
 /* tunnel_test.c - src/mods/tunnel.c: profile parser/validator/MTU maths (pure), then real rtnetlink tunnels inside its OWN user+net namespace
  * (the host network is never touched; the live part refuses to run if the namespace cannot be made). Kinds the kernel in the namespace
  * will not create (module not loaded, unprivileged) are SKIP, not failures. `ip` is used only to cross-check what the kernel really built.
- * build (from netman/):  cc -std=gnu11 -O1 -Isrc/mods -o /tmp/tunnel_test tests/tunnel_test.c src/mods/tunnel.c src/mods/netlink.c src/mods/wol.c src/mods/tether.c src/mods/licence.c && /tmp/tunnel_test */
+ * build (from netman/):  cc -std=gnu11 -O1 -Isrc/mods -Isrc/mods/vpn -o /tmp/tunnel_test tests/tunnel_test.c src/mods/tunnel.c src/mods/netlink.c src/mods/wol.c src/mods/tether.c src/mods/licence.c && /tmp/tunnel_test */
 #define NETMAN_NET_IMPLEMENTATION
 #include "../src/mods/net.h"
 #include "../src/mods/tunnel.h"

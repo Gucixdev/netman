@@ -19,7 +19,7 @@
 #define NETMAN_METRICS_IMPLEMENTATION
 #define NETMAN_VPN_IMPLEMENTATION
 #define NETMAN_FW_IMPLEMENTATION
-#include "mods/vpn.h"   /* first: its system includes must precede net.h's IFF_LOWER_UP fallback define */
+#include "mods/vpn/vpn.h"   /* first: its system includes must precede net.h's IFF_LOWER_UP fallback define */
 #include "mods/tor.h"
 #include "mods/ssh.h"
 #include "mods/mesh.h"

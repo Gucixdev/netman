@@ -4,7 +4,7 @@
  * stands in for bat0: batman-adv itself is NOT exercised). The host network is never touched.
  * build (from netman/): see the README test list; link mesh.c, the vpn mods (wireguard vpnmod openvpn ipsec l2tp openconnect sstp vpnimport) and enterprise/*.c */
 #define NETMAN_VPN_IMPLEMENTATION
-#include "../src/mods/vpn.h"
+#include "../src/mods/vpn/vpn.h"
 #define NETMAN_NET_IMPLEMENTATION
 #include "../src/mods/net.h"
 #include "../src/mods/mesh.h"

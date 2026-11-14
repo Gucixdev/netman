@@ -5,4 +5,4 @@
 # $CC picks the compiler (default cc). Extra flags (e.g. -Wno-format-truncation, -DNETMAN_X) come first.
 root=$(dirname "$(readlink -f "$0")")/..
 cd "$root" || exit 1
-exec "${CC:-cc}" -std=gnu11 -Wall -Wextra -O2 -Wno-format-truncation -Isrc -Isrc/mods "$@" $(cat src/sources)
+exec "${CC:-cc}" -std=gnu11 -Wall -Wextra -O2 -Wno-format-truncation -Isrc -Isrc/mods -Isrc/mods/vpn "$@" $(cat src/sources)

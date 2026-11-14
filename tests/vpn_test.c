@@ -1,6 +1,6 @@
 /* vpn_test.c - tests for vpn.h.
  *
- *   cc -std=gnu11 -O1 -o vpn_test vpn_test.c ../src/mods/wireguard.c ../src/mods/vpnmod.c ../src/mods/openvpn.c ../src/mods/ipsec.c ../src/mods/l2tp.c ../src/mods/openconnect.c ../src/mods/sstp.c ../src/mods/vpnimport.c ../src/mods/tor.c && ./vpn_test        pure tests: crypto vectors, parser, fuzz, JSON, providers, DNS files
+ *   cc -std=gnu11 -O1 -o vpn_test vpn_test.c ../src/mods/wireguard.c ../src/mods/vpn/vpnmod.c ../src/mods/vpn/openvpn.c ../src/mods/ipsec.c ../src/mods/l2tp.c ../src/mods/openconnect.c ../src/mods/sstp.c ../src/mods/vpn/vpnimport.c ../src/mods/tor.c && ./vpn_test        pure tests: crypto vectors, parser, fuzz, JSON, providers, DNS files
  *   ./vpn_test ns                                                         + live tests inside `unshare -Urn` (never touches the host network)
  *
  * The live part refuses to run unless it is inside a non-initial user namespace with an empty network namespace (only "lo"),
@@ -10,7 +10,7 @@
  */
 #define _GNU_SOURCE
 #define NETMAN_VPN_IMPLEMENTATION
-#include "../src/mods/vpn.h"
+#include "../src/mods/vpn/vpn.h"
 #include <sys/wait.h>
 #include <sys/stat.h>
 

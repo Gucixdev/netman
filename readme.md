@@ -150,7 +150,7 @@ Each has a tab in the TUI (only when enabled, read-only: the CLI changes things)
 
 The individual commands, for running one:
 
-    cc -std=gnu11 -Wall -Wextra -O2 -Isrc -Isrc/mods -DNETMAN_NO_MAIN -o /tmp/nm_logic tests/logic_test.c src/config.c src/mods/netlink.c src/mods/wol.c src/mods/tether.c src/mods/licence.c src/mods/wireguard.c && /tmp/nm_logic   76 checks (parsers, width, render, modals)
+    cc -std=gnu11 -Wall -Wextra -O2 -Isrc -Isrc/mods -Isrc/mods/vpn -DNETMAN_NO_MAIN -o /tmp/nm_logic tests/logic_test.c src/config.c src/mods/netlink.c src/mods/wol.c src/mods/tether.c src/mods/licence.c src/mods/wireguard.c && /tmp/nm_logic   76 checks (parsers, width, render, modals)
     tests/pty                                    the real binary in tmux against fake iwd / wpa_supplicant / bluez (tests/fakes.c): 141 checks
     tests/cli_test                               help, man sync, config, module gating, exit codes (57)
     tests/priv_test.c (15), tests/config_test.c (45; src/config.c [src/netman.conf.example])

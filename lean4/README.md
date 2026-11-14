@@ -6,7 +6,7 @@ Machine-checked models of the pure logic of `netman`. Core Lean only (no Mathlib
     lake build
 
 **Honesty first: the C is not verified. Only these hand-written models are.** Each model was
-written by reading the C (`../src/mods/net.h`, `../src/mods/vpn.h`) and mirrors it, but nothing
+written by reading the C (`../src/mods/net.h`, `../src/mods/vpn/vpn.h`) and mirrors it, but nothing
 mechanically ties the Lean definitions to the C source. A theorem here says "the model has the property";
 it is evidence about the C only as far as the model is faithful. The "Left out" lists say where it is not.
 
