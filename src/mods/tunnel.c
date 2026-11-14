@@ -260,7 +260,7 @@ static int load(const char *name, netman_tun *t, char *err, size_t en)
 {
 	char p[400], txt[4096];
 	if (!mk_name_ok(name)) { snprintf(err, en, "bad tunnel name '%s'", name); return -1; }
-	mk_path(p, sizeof p, netman_tunnel_dir, name, "tun");
+	mk_find(p, sizeof p, netman_tunnel_dir, name, "tun");
 	if (nl_slurp(p, txt, sizeof txt) < 0) { snprintf(err, en, "no tunnel profile '%s' in %s (netman tunnel save)", name, netman_tunnel_dir); return -1; }
 	if (netman_tunnel_parse(txt, t, err, en) < 0) return -1;
 	snprintf(t->name, sizeof t->name, "%s", name);

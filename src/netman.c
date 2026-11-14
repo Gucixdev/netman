@@ -46,11 +46,35 @@
 #include "tui.h"
 
 #ifndef NETMAN_NO_MAIN
+/* where the shipped default profiles live (share/profiles/NAME.ssh, .mesh, .tun): $NETMAN_SHARE_DIR, else next to the binary (a checkout: bin/netman ->
+ * share/), else the installed locations. modkit.h reads the variable. */
+static void nm_find_share(void)
+{
+	char exe[480], cand[560];
+	ssize_t n;
+	const char *fixed[] = { "/usr/local/share/netman", "/usr/share/netman", NULL };
+	if (getenv("NETMAN_SHARE_DIR") && *getenv("NETMAN_SHARE_DIR")) return;
+	if ((n = readlink("/proc/self/exe", exe, sizeof exe - 1)) > 0) {
+		char *sl;
+		exe[n] = 0;
+		if ((sl = strrchr(exe, '/'))) {
+			*sl = 0;
+			snprintf(cand, sizeof cand, "%s/../share/profiles", exe);
+			if (access(cand, R_OK) == 0) { snprintf(cand, sizeof cand, "%s/../share", exe); setenv("NETMAN_SHARE_DIR", cand, 0); return; }
+		}
+	}
+	for (int i = 0; fixed[i]; i++) {
+		snprintf(cand, sizeof cand, "%s/profiles", fixed[i]);
+		if (access(cand, R_OK) == 0) { setenv("NETMAN_SHARE_DIR", fixed[i], 0); return; }
+	}
+}
+
 int main(int argc, char **argv)
 {
 	const nc_cmd *c;
 	int words = 0, done = 0, tui = 0, wpa = 0, ok = 1;
 	char err[600];
+	nm_find_share();
 	if (argc > 1 && !strcmp(argv[1], "--priv-done")) { done = 1; memmove(argv + 1, argv + 2, (argc - 1) * sizeof *argv); argc--; }
 	for (int i = 1; i < argc; i++)   /* -tui anywhere (the easy one to remember), --tui and -t as aliases */
 		if (!strcmp(argv[i], "-tui") || !strcmp(argv[i], "--tui") || !strcmp(argv[i], "-t")) { tui = 1; argv[1] = "-tui"; argc = 2; break; }

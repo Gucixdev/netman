@@ -54,22 +54,44 @@ MK int mk_kv_read(const char *path, int (*cb)(const char *k, const char *v, void
 	return r;
 }
 
-/* names (without extension) of DIR/NAME.EXT, sorted; returns the count */
-MK int mk_names(const char *dir, const char *ext, char names[][32], int max)
+/* Shipped default profiles: $NETMAN_SHARE_DIR/profiles/NAME.EXT (netman's main sets the variable: next to the binary, or /usr/share/netman).
+ * They are listed and loaded like the profiles in DIR (a file of the same name in DIR wins), so a fresh install shows ready, editable
+ * examples instead of "no profile". They are read-only: `save NAME` writes a copy into DIR, which then shadows the shipped one. */
+MK const char *mk_share_profiles(char *o, size_t n)
+{
+	const char *s = getenv("NETMAN_SHARE_DIR");
+	if (!s || !*s) return NULL;
+	snprintf(o, n, "%s/profiles", s);
+	return o;
+}
+
+/* names (without extension) of NAME.EXT in one directory, appended to names[*n] unless already present */
+MK void mk_scan(const char *dir, const char *ext, char names[][32], int *n, int max)
 {
 	DIR *d = opendir(dir);
 	struct dirent *e;
-	int n = 0;
 	size_t el = strlen(ext);
-	if (!d) return 0;
-	while ((e = readdir(d)) && n < max) {
+	if (!d) return;
+	while ((e = readdir(d)) && *n < max) {
 		size_t l = strlen(e->d_name);
+		int dup = 0;
 		if (l <= el + 1 || strcmp(e->d_name + l - el, ext) || e->d_name[l - el - 1] != '.' || l - el - 1 >= 32) continue;
-		memcpy(names[n], e->d_name, l - el - 1);
-		names[n][l - el - 1] = 0;
-		if (mk_name_ok(names[n])) n++;
+		memcpy(names[*n], e->d_name, l - el - 1);
+		names[*n][l - el - 1] = 0;
+		if (!mk_name_ok(names[*n])) continue;
+		for (int i = 0; i < *n; i++) if (!strcmp(names[i], names[*n])) dup = 1;
+		if (!dup) (*n)++;
 	}
 	closedir(d);
+}
+
+/* names (without extension) of DIR/NAME.EXT plus the shipped defaults, sorted; returns the count */
+MK int mk_names(const char *dir, const char *ext, char names[][32], int max)
+{
+	int n = 0;
+	char sh[300];
+	mk_scan(dir, ext, names, &n, max);
+	if (mk_share_profiles(sh, sizeof sh)) mk_scan(sh, ext, names, &n, max);
 	for (int i = 1; i < n; i++)
 		for (int j = i; j > 0 && strcmp(names[j - 1], names[j]) > 0; j--) { char t[32]; memcpy(t, names[j], 32); memcpy(names[j], names[j - 1], 32); memcpy(names[j - 1], t, 32); }
 	return n;
@@ -130,6 +152,15 @@ MK int mk_int(const char *v, int lo, int hi, int *o)
 }
 
 MK void mk_path(char *o, size_t n, const char *dir, const char *name, const char *ext) { snprintf(o, n, "%s/%s.%s", dir, name, ext); }
+/* where to READ profile NAME: DIR/NAME.EXT, else the shipped default; (when neither exists: the DIR path, so the error names it). Writers use mk_path. */
+MK void mk_find(char *o, size_t n, const char *dir, const char *name, const char *ext)
+{
+	char sh[300], d[420];
+	mk_path(o, n, dir, name, ext);
+	if (mk_exists(o) || !mk_share_profiles(sh, sizeof sh)) return;
+	mk_path(d, sizeof d, sh, name, ext);
+	if (mk_exists(d)) snprintf(o, n, "%s", d);
+}
 
 MK int mk_mkdirs(const char *d) { return nl_mkdirs(d); }
 #endif

@@ -1,0 +1,16 @@
+# example.ssh - a ready SSH profile (shipped default, read-only). Edit a copy:  netman ssh save example host=... user=...
+# (the copy goes to ssh.dir, /etc/netman/ssh, and replaces this one). Bring it up with:  netman ssh up example
+host = ssh.example.org
+port = 22
+user = you
+# a SOCKS5 proxy on 127.0.0.1:1080 through the server; add  forward = L:8080:localhost:80  for a local forward
+forward = D:1080
+keepalive = 30
+keepalive_count = 3
+connect_timeout = 15
+control = yes
+reconnect = yes
+reconnect_delay = 5
+# host keys are never trusted silently: `netman ssh hostkey example`, then `netman ssh trust example SHA256:...`
+strict = accept-new
+auto = no

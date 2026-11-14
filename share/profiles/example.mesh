@@ -1,0 +1,10 @@
+# example.mesh - a ready batman-adv mesh profile (shipped default, read-only). Copy it with your own radios/ports:
+#   netman mesh save example kind=batman ifaces=wlan1 addr=10.77.0.1/16
+# then:  netman mesh up example   (needs root and the batman-adv kernel module)
+kind = batman
+iface = bat0
+ifaces = eth1
+addr = 10.77.0.1/16
+orig_interval = 1000
+gw_mode = off
+auto = no

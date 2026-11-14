@@ -155,7 +155,7 @@ static int load(const char *name, netman_mesh *m, char *err, size_t en)
 {
 	char p[400], txt[4096];
 	if (!mk_name_ok(name)) { snprintf(err, en, "bad mesh name '%s'", name); return -1; }
-	mk_path(p, sizeof p, netman_mesh_dir, name, "mesh");
+	mk_find(p, sizeof p, netman_mesh_dir, name, "mesh");
 	if (nl_slurp(p, txt, sizeof txt) < 0) { snprintf(err, en, "no mesh profile '%s' in %s (netman mesh save)", name, netman_mesh_dir); return -1; }
 	if (netman_mesh_parse(txt, m, err, en) < 0) return -1;
 	snprintf(m->name, sizeof m->name, "%s", name);

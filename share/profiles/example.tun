@@ -1,0 +1,10 @@
+# example.tun - a ready GRE tunnel profile (shipped default, read-only). Copy it with your own endpoints:
+#   netman tunnel save example kind=gre local=A remote=B addr=10.99.0.1/30
+# then:  netman tunnel up example   (needs root); the other end uses the mirrored local/remote and 10.99.0.2/30
+kind = gre
+local = 192.0.2.1
+remote = 192.0.2.2
+addr = 10.99.0.1/30
+ttl = 64
+mtu = auto
+auto = no

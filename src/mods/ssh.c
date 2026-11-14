@@ -267,7 +267,7 @@ static int load(const netman_ssh_cfg *c, const char *name, netman_ssh *p, char *
 {
 	char path[400], txt[4096];
 	if (!mk_name_ok(name)) { snprintf(err, en, "bad profile name '%s'", name); return -1; }
-	mk_path(path, sizeof path, c->dir, name, "ssh");
+	mk_find(path, sizeof path, c->dir, name, "ssh");
 	if (nl_slurp(path, txt, sizeof txt) < 0) { snprintf(err, en, "no ssh profile '%s' in %s (netman ssh save %s host=...)", name, c->dir, name); return -1; }
 	if (netman_ssh_parse(txt, p, err, en) < 0) return -1;
 	snprintf(p->name, sizeof p->name, "%s", name);
