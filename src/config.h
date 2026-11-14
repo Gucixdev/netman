@@ -51,8 +51,8 @@
 	X(METRICS_ENABLED, "metrics", "enabled", "bool", "yes", "Interface counters and rates: the metrics commands, the rates in the TUI.") \
 	X(METRICS_DIR, "metrics", "dir", "path", "/var/lib/netman/metrics", "Where `metrics record` appends one TSV file per interface (rotated at 1 MiB).") \
 	X(METRICS_INTERVAL, "metrics", "interval_s", "int:1:3600", "5", "Seconds between samples for `metrics watch` and `metrics record --loop`.") \
-	X(ENT_ENABLED, "enterprise", "enabled", "bool", "no", "Enterprise networking: bonding, bridges, vlans, routes and rules, ECMP, tethering. Off by default: it changes links and routes.") \
-	X(ENT_PROBE_MS, "enterprise", "probe_ms", "int:100:60000", "1000", "ECMP: per-uplink ICMP probe timeout and the tick between probes (ms).") \
+	X(NL_ENABLED, "enterprise", "enabled", "bool", "no", "Enterprise networking: bonding, bridges, vlans, routes and rules, ECMP, tethering. Off by default: it changes links and routes.") \
+	X(NL_PROBE_MS, "enterprise", "probe_ms", "int:100:60000", "1000", "ECMP: per-uplink ICMP probe timeout and the tick between probes (ms).") \
 	X(LIC_DIR, "enterprise", "licence_dir", "path", "/etc/netman/licences", "Where licence (.lic) and VPN key (.key) files live.") \
 	X(LIC_WARN, "enterprise", "licence_warn_days", "int:0:365", "30", "`licence status` flags a licence expiring within this many days.") \
 	X(LIC_RENEW_HOOK, "enterprise", "renew_hook", "cmd", "", "Command (split on spaces, no shell) run by `licence renew NAME`: gets NAME CURRENT_PATH NEW_PATH and must write the renewed licence to NEW_PATH. netman never contacts a network for renewal itself.") \

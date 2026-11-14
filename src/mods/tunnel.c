@@ -2,7 +2,7 @@
 #include "modkit.h"
 #include "net.h"
 #include "tunnel.h"
-#include "enterprise/enterprise.h"
+#include "netlink.h"
 #include <arpa/inet.h>
 #include <linux/if_link.h>
 #include <linux/if_tunnel.h>
@@ -69,11 +69,11 @@ int netman_tunnel_parse(const char *text, netman_tun *t, char *err, size_t en)
 	tun_init(t);
 	if (!c) return -1;
 	for (ln = strtok_r(c, "\n", &sv); ln; ln = strtok_r(NULL, "\n", &sv)) {
-		char *p = ent_trim(ln), *eq;
+		char *p = nl_trim(ln), *eq;
 		if (!*p || *p == '#') continue;
 		if (!(eq = strchr(p, '='))) { snprintf(err, en, "not key = value: '%s'", p); free(c); return -1; }
 		*eq = 0;
-		if (set_kv(t, ent_trim(p), ent_trim(eq + 1), err, en)) { free(c); return -1; }
+		if (set_kv(t, nl_trim(p), nl_trim(eq + 1), err, en)) { free(c); return -1; }
 	}
 	free(c);
 	return 0;
@@ -130,8 +130,8 @@ int netman_tunnel_mtu(const netman_tun *t, int *underlay, int *overhead)
 	char p[300], b[16];
 	int u = 1500, o;
 	if (t->link[0]) {
-		snprintf(p, sizeof p, "%s/class/net/%s/mtu", netman_ent_sys, t->link);
-		if (ent_slurp(p, b, sizeof b) > 0 && atoi(b) > 0) u = atoi(b);
+		snprintf(p, sizeof p, "%s/class/net/%s/mtu", netman_nl_sys, t->link);
+		if (nl_slurp(p, b, sizeof b) > 0 && atoi(b) > 0) u = atoi(b);
 	}
 	o = netman_tunnel_overhead(t->kind, is_v6(t->local) || is_v6(t->remote), t->key >= 0);
 	if (!strcmp(t->kind, "l2tp") && !strcmp(t->encap, "udp")) o += 8;
@@ -141,26 +141,26 @@ int netman_tunnel_mtu(const netman_tun *t, int *underlay, int *overhead)
 }
 
 /* ---- rtnetlink ---- */
-static int nest(ent_req *q, int type) { int off = NLMSG_ALIGN(q->h.nlmsg_len); ent_attr(q, type, NULL, 0); return off; }
-static void nend(ent_req *q, int off) { ((struct rtattr *)((char *)q + off))->rta_len = q->h.nlmsg_len - off; }
-static void a8(ent_req *q, int t, uint8_t v) { ent_attr(q, t, &v, 1); }
-static void a16(ent_req *q, int t, uint16_t v) { ent_attr(q, t, &v, 2); }
-static void a32(ent_req *q, int t, uint32_t v) { ent_attr(q, t, &v, 4); }
-static void aip(ent_req *q, int t, const char *s) { unsigned char b[16]; if (inet_pton(is_v6(s) ? AF_INET6 : AF_INET, s, b) == 1) ent_attr(q, t, b, is_v6(s) ? 16 : 4); }
+static int nest(nl_req *q, int type) { int off = NLMSG_ALIGN(q->h.nlmsg_len); nl_attr(q, type, NULL, 0); return off; }
+static void nend(nl_req *q, int off) { ((struct rtattr *)((char *)q + off))->rta_len = q->h.nlmsg_len - off; }
+static void a8(nl_req *q, int t, uint8_t v) { nl_attr(q, t, &v, 1); }
+static void a16(nl_req *q, int t, uint16_t v) { nl_attr(q, t, &v, 2); }
+static void a32(nl_req *q, int t, uint32_t v) { nl_attr(q, t, &v, 4); }
+static void aip(nl_req *q, int t, const char *s) { unsigned char b[16]; if (inet_pton(is_v6(s) ? AF_INET6 : AF_INET, s, b) == 1) nl_attr(q, t, b, is_v6(s) ? 16 : 4); }
 
 static int rt_create(const netman_tun *t, int mtu, char *err, size_t en)
 {
-	ent_req q;
+	nl_req q;
 	int li, di, link = 0, v6 = is_v6(t->local) || is_v6(t->remote), r;
 	const char *kind = t->kind;
 	char kb[16];
-	if (t->link[0] && (link = ent_idx(t->link)) < 0) { snprintf(err, en, "link %s does not exist", t->link); return link; }
+	if (t->link[0] && (link = nl_idx(t->link)) < 0) { snprintf(err, en, "link %s does not exist", t->link); return link; }
 	if (v6 && (!strcmp(kind, "gre") || !strcmp(kind, "gretap"))) { snprintf(kb, sizeof kb, "ip6%s", kind); kind = kb; }
-	ent_req_init(&q, RTM_NEWLINK, NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL, sizeof(struct ifinfomsg));
-	ent_attr(&q, IFLA_IFNAME, t->name, (int)strlen(t->name) + 1);
+	nl_req_init(&q, RTM_NEWLINK, NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL, sizeof(struct ifinfomsg));
+	nl_attr(&q, IFLA_IFNAME, t->name, (int)strlen(t->name) + 1);
 	if (mtu > 0) a32(&q, IFLA_MTU, (uint32_t)mtu);
 	li = nest(&q, IFLA_LINKINFO);
-	ent_attr(&q, IFLA_INFO_KIND, kind, (int)strlen(kind) + 1);
+	nl_attr(&q, IFLA_INFO_KIND, kind, (int)strlen(kind) + 1);
 	di = nest(&q, IFLA_INFO_DATA);
 	if (!strncmp(kind, "gre", 3) || !strncmp(kind, "ip6gre", 6)) {
 		if (link) a32(&q, IFLA_GRE_LINK, (uint32_t)link);
@@ -192,7 +192,7 @@ static int rt_create(const netman_tun *t, int mtu, char *err, size_t en)
 	}
 	nend(&q, di);
 	nend(&q, li);
-	if ((r = ent_nl(&q, NULL, NULL)) < 0) snprintf(err, en, "%s %s: %s%s", t->kind, t->name, strerror(-r), r == -EOPNOTSUPP || r == -ENODEV || r == -EPERM ? " (is the kernel module loaded / are you root?)" : "");
+	if ((r = nl_nl(&q, NULL, NULL)) < 0) snprintf(err, en, "%s %s: %s%s", t->kind, t->name, strerror(-r), r == -EOPNOTSUPP || r == -ENODEV || r == -EPERM ? " (is the kernel module loaded / are you root?)" : "");
 	return r;
 }
 
@@ -230,12 +230,12 @@ int netman_tunnel_up(const netman_tun *tin, char *err, size_t en)
 	if (mtu < 68) { snprintf(err, en, "computed MTU %d is too small (underlay %d, overhead %d)", mtu, u, o); return -EINVAL; }
 	r = !strcmp(t.kind, "l2tp") ? l2tp_run(&t, 1, err, en) : rt_create(&t, mtu, err, en);
 	if (r < 0) return r;
-	if (!strcmp(t.kind, "l2tp") && ent_idx(t.name) > 0) {   /* l2tpeth devices take their MTU after creation */
-		ent_req q;
-		ent_req_init(&q, RTM_NEWLINK, NLM_F_ACK, sizeof(struct ifinfomsg));
-		q.m.i.ifi_index = ent_idx(t.name);
+	if (!strcmp(t.kind, "l2tp") && nl_idx(t.name) > 0) {   /* l2tpeth devices take their MTU after creation */
+		nl_req q;
+		nl_req_init(&q, RTM_NEWLINK, NLM_F_ACK, sizeof(struct ifinfomsg));
+		q.m.i.ifi_index = nl_idx(t.name);
 		a32(&q, IFLA_MTU, (uint32_t)mtu);
-		ent_nl(&q, NULL, NULL);
+		nl_nl(&q, NULL, NULL);
 	}
 	if (t.addr[0] && (r = netman_addr_add(t.name, t.addr)) < 0) { snprintf(err, en, "address %s: %s", t.addr, strerror(-r)); return r; }
 	if ((r = netman_link_set(t.name, 1)) < 0) snprintf(err, en, "cannot bring %s up: %s", t.name, strerror(-r));
@@ -245,13 +245,13 @@ int netman_tunnel_up(const netman_tun *tin, char *err, size_t en)
 int netman_tunnel_down(const netman_tun *tin, char *err, size_t en)
 {
 	netman_tun t = *tin;
-	ent_req q;
+	nl_req q;
 	int r;
 	err[0] = 0;
 	if (!strcmp(t.kind, "l2tp")) { if (netman_tunnel_check(&t, err, en) < 0) return -EINVAL; return l2tp_run(&t, 0, err, en); }
-	ent_req_init(&q, RTM_DELLINK, NLM_F_ACK, sizeof(struct ifinfomsg));
-	ent_attr(&q, IFLA_IFNAME, t.name, (int)strlen(t.name) + 1);
-	if ((r = ent_nl(&q, NULL, NULL)) < 0) snprintf(err, en, "%s: %s", t.name, r == -ENODEV ? "not up" : strerror(-r));
+	nl_req_init(&q, RTM_DELLINK, NLM_F_ACK, sizeof(struct ifinfomsg));
+	nl_attr(&q, IFLA_IFNAME, t.name, (int)strlen(t.name) + 1);
+	if ((r = nl_nl(&q, NULL, NULL)) < 0) snprintf(err, en, "%s: %s", t.name, r == -ENODEV ? "not up" : strerror(-r));
 	return r;
 }
 
@@ -261,7 +261,7 @@ static int load(const char *name, netman_tun *t, char *err, size_t en)
 	char p[400], txt[4096];
 	if (!mk_name_ok(name)) { snprintf(err, en, "bad tunnel name '%s'", name); return -1; }
 	mk_path(p, sizeof p, netman_tunnel_dir, name, "tun");
-	if (ent_slurp(p, txt, sizeof txt) < 0) { snprintf(err, en, "no tunnel profile '%s' in %s (netman tunnel save)", name, netman_tunnel_dir); return -1; }
+	if (nl_slurp(p, txt, sizeof txt) < 0) { snprintf(err, en, "no tunnel profile '%s' in %s (netman tunnel save)", name, netman_tunnel_dir); return -1; }
 	if (netman_tunnel_parse(txt, t, err, en) < 0) return -1;
 	snprintf(t->name, sizeof t->name, "%s", name);
 	return netman_tunnel_check(t, err, en);
@@ -270,14 +270,14 @@ static int load(const char *name, netman_tun *t, char *err, size_t en)
 static long statn(const char *ifn, const char *f)
 {
 	char p[300], b[32];
-	snprintf(p, sizeof p, "%s/class/net/%s/%s", netman_ent_sys, ifn, f);
-	return ent_slurp(p, b, sizeof b) > 0 ? atol(b) : -1;
+	snprintf(p, sizeof p, "%s/class/net/%s/%s", netman_nl_sys, ifn, f);
+	return nl_slurp(p, b, sizeof b) > 0 ? atol(b) : -1;
 }
 /* link state from rtnetlink (the right network namespace; sysfs may belong to another one) */
 static int live_state(const char *ifn, char *st, size_t n, int *mtu)
 {
-	netman_ent_info i;
-	if (netman_ent_getinfo(ifn, &i) < 0) { snprintf(st, n, "down"); return 0; }   /* profile only */
+	netman_nl_info i;
+	if (netman_nl_getinfo(ifn, &i) < 0) { snprintf(st, n, "down"); return 0; }   /* profile only */
 	snprintf(st, n, "%s", i.up ? "up" : "down");
 	*mtu = i.mtu;
 	return 1;
@@ -307,7 +307,7 @@ static int profile_save(const netman_tun *t, char *err, size_t en)
 	l += netman_tunnel_format(t, body + l, sizeof body - l);
 	if ((r = mk_mkdirs(netman_tunnel_dir)) < 0) { snprintf(err, en, "%s: %s", netman_tunnel_dir, strerror(-r)); return r; }
 	mk_path(p, sizeof p, netman_tunnel_dir, t->name, "tun");
-	if ((r = ent_write_atomic(p, body, (size_t)l, 0644)) < 0) snprintf(err, en, "%.200s: %s", p, strerror(-r));
+	if ((r = nl_write_atomic(p, body, (size_t)l, 0644)) < 0) snprintf(err, en, "%.200s: %s", p, strerror(-r));
 	return r;
 }
 
@@ -325,7 +325,7 @@ int netman_tunnel_main(FILE *out, FILE *err, int argc, char **argv)
 		tun_init(&t);
 		snprintf(t.name, sizeof t.name, "%s", argv[1]);
 		if (!mk_name_ok(argv[1])) { fprintf(err, "tunnel: bad name '%s'\n", argv[1]); return 2; }
-		{ char p[400], txt[4096]; mk_path(p, sizeof p, netman_tunnel_dir, argv[1], "tun"); if (ent_slurp(p, txt, sizeof txt) > 0) netman_tunnel_parse(txt, &t, e, sizeof e); }
+		{ char p[400], txt[4096]; mk_path(p, sizeof p, netman_tunnel_dir, argv[1], "tun"); if (nl_slurp(p, txt, sizeof txt) > 0) netman_tunnel_parse(txt, &t, e, sizeof e); }
 		for (int i = 2; i < argc; i++) {
 			char *eq = strchr(argv[i], '='), k[24];
 			if (!eq || eq == argv[i] || eq - argv[i] >= 24) { fprintf(err, "tunnel: expected key=value, got '%s'\n", argv[i]); return 2; }

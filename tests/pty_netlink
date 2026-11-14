@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# pty_ent - drive the Enterprise tab of the real TUI against REAL bond / bridge / vlan devices inside `unshare -Urn` (user+net namespace:
+# pty_netlink - drive the Enterprise tab of the real TUI against REAL bond / bridge / vlan devices inside `unshare -Urn` (user+net namespace:
 # nothing outside is touched). Profiles come from a temp dir via NETMAN_CONF_DIR, licences from enterprise.licence_dir. Checks that the tab
 # exists only with enterprise.enabled, shows bonds/bridges/vlans/uplinks/licences read-only, I/i details, 80x24 and 40x12.
 # Skips (exit 0) when unshare / tmux / bonding are unavailable.
 set -u
 self=$(readlink -f "$0"); cd "$(dirname "$self")" || exit 1
 if [ -z "${NM_PTY_ENT_INNER:-}" ]; then
-	command -v tmux >/dev/null && command -v unshare >/dev/null || { echo "pty_ent: skipped (tmux/unshare missing)"; exit 0; }
-	unshare -Urn true 2>/dev/null || { echo "pty_ent: skipped (no user namespaces)"; exit 0; }
+	command -v tmux >/dev/null && command -v unshare >/dev/null || { echo "pty_netlink: skipped (tmux/unshare missing)"; exit 0; }
+	unshare -Urn true 2>/dev/null || { echo "pty_netlink: skipped (no user namespaces)"; exit 0; }
 	NM_PTY_ENT_INNER=1 exec unshare -Urn "$self"
 fi
 ip link set lo up
-ip link add nmb0 type bond mode 802.3ad 2>/dev/null || { echo "pty_ent: skipped (no bonding in this kernel)"; exit 0; }
+ip link add nmb0 type bond mode 802.3ad 2>/dev/null || { echo "pty_netlink: skipped (no bonding in this kernel)"; exit 0; }
 ip link del nmb0
 work=$(mktemp -d); trap 'tmux -L nment kill-server 2>/dev/null; rm -rf "$work"' EXIT
-cc -std=gnu11 -Wall -Wextra -O2 -I../src -I../src/mods -o "$work/nm" ../src/netman.c ../src/config.c ../src/mods/enterprise/enterprise.c ../src/mods/enterprise/tether.c ../src/mods/enterprise/licence.c ../src/mods/wireguard.c ../src/mods/vpnmod.c ../src/mods/openvpn.c ../src/mods/ipsec.c ../src/mods/l2tp.c ../src/mods/openconnect.c ../src/mods/sstp.c ../src/mods/vpnimport.c ../src/mods/tor.c ../src/mods/ssh.c ../src/mods/mesh.c ../src/mods/bonding.c ../src/mods/tunnel.c || exit 1
+cc -std=gnu11 -Wall -Wextra -O2 -I../src -I../src/mods -o "$work/nm" ../src/netman.c ../src/config.c ../src/mods/netlink.c ../src/mods/wol.c src/mods/wol.c ../src/mods/tether.c ../src/mods/licence.c ../src/mods/wireguard.c ../src/mods/vpnmod.c ../src/mods/openvpn.c ../src/mods/ipsec.c ../src/mods/l2tp.c ../src/mods/openconnect.c ../src/mods/sstp.c ../src/mods/vpnimport.c ../src/mods/tor.c ../src/mods/ssh.c ../src/mods/mesh.c ../src/mods/bonding.c ../src/mods/tunnel.c || exit 1
 mkdir -p "$work/conf" "$work/lic"
 chmod 755 "$work"
 ip link add dummy0 type dummy; ip link add dummy1 type dummy; ip link set dummy0 up; ip link set dummy1 up
@@ -83,5 +83,5 @@ for size in "80 24" "40 12"; do
 	keys I; keys q
 	has "EXIT:0" "clean exit at $1x$2"
 done
-echo "pty_ent: $pass ok, $fail failed"
+echo "pty_netlink: $pass ok, $fail failed"
 [ "$fail" -eq 0 ]

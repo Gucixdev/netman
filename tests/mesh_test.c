@@ -8,8 +8,8 @@
 #define NETMAN_NET_IMPLEMENTATION
 #include "../src/mods/net.h"
 #include "../src/mods/mesh.h"
-#include "../src/mods/enterprise/entcore.h"
-#include "../src/mods/enterprise/enterprise.h"
+#include "../src/mods/netlink_priv.h"
+#include "../src/mods/netlink.h"
 #include <sys/stat.h>
 #include <sched.h>
 #include <sys/prctl.h>
@@ -44,7 +44,7 @@ static int slurp(const char *name, char *b, size_t n)
 	char p[200];
 	snprintf(p, sizeof p, "%s/%s", dir, name);
 	b[0] = 0;
-	return ent_slurp(p, b, n);
+	return nl_slurp(p, b, n);
 }
 static void mkpair(char *priv_b64, char *pub_b64)
 {
@@ -140,11 +140,11 @@ int main(void)
 		CHK(strstr(log, "ip link add name bat0 type batadv"), "%s", log);
 		CHK(strstr(log, "batctl meshif bat0 interface add eth1") && strstr(log, "batctl meshif bat0 interface add eth2"), "%s", log);
 		CHK(strstr(log, "batctl meshif bat0 gw_mode client") && strstr(log, "batctl meshif bat0 orig_interval 500") && strstr(log, "batctl meshif bat0 hop_penalty 20"), "%s", log);
-		CHK(ent_idx("bat0") >= 0, "the stand-in bat0 exists");
+		CHK(nl_idx("bat0") >= 0, "the stand-in bat0 exists");
 		CHK(netman_mesh_main(o, er, 2, argv_up) == 0, "second up is harmless");
 		{ char *s[] = { "status" }; fflush(o); rewind(o); memset(st, 0, sizeof st); netman_mesh_main(o, er, 1, s); fflush(o); CHK(strstr(st, "bm up batman bat0  ports 2"), "%s", st); }
 		{ char *nb[] = { "neighbors", "bm" }; fflush(o); rewind(o); memset(st, 0, sizeof st); r = netman_mesh_main(o, er, 2, nb); fflush(o); CHK(r == 0 && strstr(st, "Neighbor"), "%s", st); }
-		CHK(netman_mesh_main(o, er, 2, argv_dn) == 0 && ent_idx("bat0") < 0, "down removes the device");
+		CHK(netman_mesh_main(o, er, 2, argv_dn) == 0 && nl_idx("bat0") < 0, "down removes the device");
 		/* no batctl: master via ip */
 		netman_mesh_batctl = "/nonexistent/batctl";
 		wr("log", "", 0);
@@ -173,7 +173,7 @@ int main(void)
 		snprintf(list, sizeof list, "a %s 127.0.0.1:51999 10.78.0.1\nb %s 127.0.0.1:51998 10.78.0.2\n", pa, pb);
 		(void)ke;
 		CHK(netman_mesh_main(o, er, 7, sv) == 0);
-		{ char p[300]; snprintf(p, sizeof p, "%s/w.peers", md); ent_write_atomic(p, list, strlen(list), 0644); }
+		{ char p[300]; snprintf(p, sizeof p, "%s/w.peers", md); nl_write_atomic(p, list, strlen(list), 0644); }
 		fflush(er); rewind(er); memset(se, 0, sizeof se);
 		CHK(netman_mesh_main(o, er, 2, up) == 1, "up without a private key"); fflush(er);
 		CHK(strstr(se, "mesh init"), "%s", se);
@@ -186,13 +186,13 @@ int main(void)
 		else {
 			char o2[300];
 			netman_wg_stat s;
-			CHK(ent_idx("wgt0") >= 0, "device exists");
+			CHK(nl_idx("wgt0") >= 0, "device exists");
 			CHK(netman_wg_stats("wgt0", &s) == 0 && s.npeers == 1 && s.listen_port == 51999, "peers %d port %d", s.npeers, s.listen_port);
-			{ netman_ent_info i; CHK(netman_ent_getinfo("wgt0", &i) == 0 && i.up, "link up"); }
+			{ netman_nl_info i; CHK(netman_nl_getinfo("wgt0", &i) == 0 && i.up, "link up"); }
 			{ char *sx[] = { "status" }; fflush(o); rewind(o); memset(so, 0, sizeof so); netman_mesh_main(o, er, 1, sx); fflush(o); CHK(strstr(so, "w up wg wgt0  peers 0/1"), "%s", so); }
 			CHK(netman_mesh_main(o, er, 2, up) == 0, "up twice is harmless (reconfigures)");
 			(void)o2;
-			CHK(netman_mesh_main(o, er, 2, dn) == 0 && ent_idx("wgt0") < 0, "down");
+			CHK(netman_mesh_main(o, er, 2, dn) == 0 && nl_idx("wgt0") < 0, "down");
 		}
 		(void)gn;
 		fclose(o); fclose(er);

@@ -19,7 +19,7 @@ for Wi-Fi and bluez for Bluetooth, plus own netlink/DHCP/DNS, WireGuard/OpenVPN,
     src/config.c/.h     settings file + env (NC_KEYS table); src/netman.conf.example is documented and kept in sync by a test
     src/priv.h          when to re-run through sudo
     src/tui.h           the terminal UI
-    src/mods/           stb-style libraries: wifi.h btth.h dbus.h net.h roaming.h scoring.h metrics.h vpn.h firewall.h wireguard.h (+ wireguard.c, enterprise.c, tether.c, licence.c: plain .c, not stb) (+ vpnmod/openvpn/ipsec/l2tp/openconnect/sstp/vpnimport/tor .c: the VPN client modules, profile import, Tor; + ssh.c mesh.c bonding.c tunnel.c: the optional network mods below, each off by default, shared helpers in modkit.h; + enterprise/: the enterprise mods)
+    src/mods/           stb-style libraries: wifi.h btth.h dbus.h net.h roaming.h scoring.h metrics.h vpn.h firewall.h wireguard.h (+ wireguard.c, netlink.c, tether.c, licence.c: plain .c, not stb) (+ vpnmod/openvpn/ipsec/l2tp/openconnect/sstp/vpnimport/tor .c: the VPN client modules, profile import, Tor; + ssh.c mesh.c bonding.c tunnel.c: the optional network mods below, each off by default, shared helpers in modkit.h;; netlink.c: bond, bridge, vlan, routes, ECMP, link settings; wol.c: Wake-on-LAN)
     src/daemon.c, daemonless.c   placeholders for the future daemon (it must respect the same config)
 
 ## use
@@ -134,11 +134,11 @@ Each has a tab in the TUI (only when enabled, read-only: the CLI changes things)
 
 ## tests (`tests/`)
 
-    cc -std=gnu11 -Wall -Wextra -O2 -Isrc -Isrc/mods -DNETMAN_NO_MAIN -o /tmp/nm_logic tests/logic_test.c src/config.c src/mods/enterprise/enterprise.c src/mods/enterprise/tether.c src/mods/enterprise/licence.c src/mods/wireguard.c && /tmp/nm_logic   76 checks (parsers, width, render, modals)
+    cc -std=gnu11 -Wall -Wextra -O2 -Isrc -Isrc/mods -DNETMAN_NO_MAIN -o /tmp/nm_logic tests/logic_test.c src/config.c src/mods/netlink.c src/mods/wol.c src/mods/tether.c src/mods/licence.c src/mods/wireguard.c && /tmp/nm_logic   76 checks (parsers, width, render, modals)
     tests/pty                                    the real binary in tmux against fake iwd / wpa_supplicant / bluez (tests/fakes.c): 105 checks
     tests/cli_test                               help, man sync, config, module gating, exit codes (57)
     cc -std=gnu11 -Isrc -o /tmp/nm_priv tests/priv_test.c; cc ... tests/config_test.c src/config.c [src/netman.conf.example]   15 / 77
-    tests/vpnmod_test.c (VPN module goldens, fake swanctl/openconnect, import samples in tests/vpn_samples, xl2tpd parses the config), tests/tor_test.c (torrc/nft goldens, fake control server, nft rules loaded in `unshare -Urn`: redirect, leak dropped, fail closed), tests/pty_tor (Tor tab + VPN types, 80x24 and 40x12), tests/pty_ent (Enterprise tab, 80x24 and 40x12), tests/pty_vpn (real WireGuard in unshare -Urn, drives the VPN tab), tests/wifi_bt_test.c (75), net_test (+ `selftest` under unshare -Urn), vpn_test (+ live WireGuard peer edits under ns), fw_test, net_score_test (unshare -Urn)
+    tests/vpnmod_test.c (VPN module goldens, fake swanctl/openconnect, import samples in tests/vpn_samples, xl2tpd parses the config), tests/tor_test.c (torrc/nft goldens, fake control server, nft rules loaded in `unshare -Urn`: redirect, leak dropped, fail closed), tests/pty_tor (Tor tab + VPN types, 80x24 and 40x12), tests/pty_netlink (Enterprise tab, 80x24 and 40x12), tests/pty_vpn (real WireGuard in unshare -Urn, drives the VPN tab), tests/wifi_bt_test.c (75), net_test (+ `selftest` under unshare -Urn), vpn_test (+ live WireGuard peer edits under ns), fw_test, net_score_test (unshare -Urn)
 
     tests/settings_test.c (schema consistency: every config key has an entry; 616 checks), tests/settings_cli_test (settings goldens, JSON validity, atomic writes, pick through a fake menu), tests/pty_settings (the S panel in tmux under `unshare -Urn`: keys, mouse, 80x24 and 40x12)
 

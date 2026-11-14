@@ -65,11 +65,11 @@ int netman_mesh_parse(const char *text, netman_mesh *m, char *err, size_t en)
 	mesh_init(m);
 	if (!c) return -1;
 	for (ln = strtok_r(c, "\n", &sv); ln; ln = strtok_r(NULL, "\n", &sv)) {
-		char *p = ent_trim(ln), *eq;
+		char *p = nl_trim(ln), *eq;
 		if (!*p || *p == '#') continue;
 		if (!(eq = strchr(p, '='))) { snprintf(err, en, "not key = value: '%s'", p); free(c); return -1; }
 		*eq = 0;
-		if (set_kv(m, ent_trim(p), ent_trim(eq + 1), err, en)) { free(c); return -1; }
+		if (set_kv(m, nl_trim(p), nl_trim(eq + 1), err, en)) { free(c); return -1; }
 	}
 	free(c);
 	return 0;
@@ -111,7 +111,7 @@ int netman_mesh_nodes_parse(const char *text, netman_mesh_node *n, int max, char
 	int cnt = 0;
 	if (!c) return -1;
 	for (ln = strtok_r(c, "\n", &sv); ln; ln = strtok_r(NULL, "\n", &sv)) {
-		char *p = ent_trim(ln), nm[32], pub[48], ep[80], ad[46], extra[8];
+		char *p = nl_trim(ln), nm[32], pub[48], ep[80], ad[46], extra[8];
 		unsigned char k[32];
 		if (!*p || *p == '#') continue;
 		if (sscanf(p, "%31s %47s %79s %45s %7s", nm, pub, ep, ad, extra) != 4) { snprintf(err, en, "peer line needs: name public-key endpoint|- address (got '%.60s')", p); free(c); return -1; }
@@ -156,7 +156,7 @@ static int load(const char *name, netman_mesh *m, char *err, size_t en)
 	char p[400], txt[4096];
 	if (!mk_name_ok(name)) { snprintf(err, en, "bad mesh name '%s'", name); return -1; }
 	mk_path(p, sizeof p, netman_mesh_dir, name, "mesh");
-	if (ent_slurp(p, txt, sizeof txt) < 0) { snprintf(err, en, "no mesh profile '%s' in %s (netman mesh save)", name, netman_mesh_dir); return -1; }
+	if (nl_slurp(p, txt, sizeof txt) < 0) { snprintf(err, en, "no mesh profile '%s' in %s (netman mesh save)", name, netman_mesh_dir); return -1; }
 	if (netman_mesh_parse(txt, m, err, en) < 0) return -1;
 	snprintf(m->name, sizeof m->name, "%s", name);
 	return netman_mesh_check(m, err, en);
@@ -165,7 +165,7 @@ static int nodes_load(const char *name, netman_mesh_node *n, int max, char *err,
 {
 	char p[400], txt[16384];
 	mk_path(p, sizeof p, netman_mesh_dir, name, "peers");
-	if (ent_slurp(p, txt, sizeof txt) < 0) { snprintf(err, en, "no peer list %s (netman mesh node %s add ...)", p, name); return -1; }
+	if (nl_slurp(p, txt, sizeof txt) < 0) { snprintf(err, en, "no peer list %s (netman mesh node %s add ...)", p, name); return -1; }
 	return netman_mesh_nodes_parse(txt, n, max, err, en);
 }
 static void keypath(const netman_mesh *m, char *o, size_t n)
@@ -176,8 +176,8 @@ static int key_load(const netman_mesh *m, unsigned char k[32], char *b64, size_t
 {
 	char p[400], t[128];
 	keypath(m, p, sizeof p);
-	if (ent_slurp(p, t, sizeof t) < 0) { snprintf(err, en, "no private key %s (netman mesh init %s)", p, m->name); return -1; }
-	{ char *e = ent_trim(t); if (netman_vpn_b64_decode32(e, k)) { snprintf(err, en, "%s is not a 32-byte base64 key", p); return -1; } if (b64) snprintf(b64, bn, "%s", e); }
+	if (nl_slurp(p, t, sizeof t) < 0) { snprintf(err, en, "no private key %s (netman mesh init %s)", p, m->name); return -1; }
+	{ char *e = nl_trim(t); if (netman_vpn_b64_decode32(e, k)) { snprintf(err, en, "%s is not a 32-byte base64 key", p); return -1; } if (b64) snprintf(b64, bn, "%s", e); }
 	return 0;
 }
 
@@ -201,7 +201,7 @@ static int up_batman(const netman_mesh *m, char *err, size_t en)
 {
 	char b[96], *sv = NULL, *t, num[16];
 	int r;
-	if (ent_idx(m->iface) >= 0) return -EEXIST;
+	if (nl_idx(m->iface) >= 0) return -EEXIST;
 	if ((r = ip_run("link", "add", "name", m->iface, "type", "batadv", NULL, err, en)) < 0) return r;
 	mk_cpy(b, sizeof b, m->ifaces);
 	for (t = strtok_r(b, ",", &sv); t; t = strtok_r(NULL, ",", &sv)) {
@@ -266,12 +266,12 @@ int netman_mesh_up(const netman_mesh *m, char *err, size_t en)
 
 int netman_mesh_down(const netman_mesh *m, char *err, size_t en)
 {
-	ent_req q;
+	nl_req q;
 	int r;
 	err[0] = 0;
-	ent_req_init(&q, RTM_DELLINK, NLM_F_ACK, sizeof(struct ifinfomsg));
-	ent_attr(&q, IFLA_IFNAME, m->iface, (int)strlen(m->iface) + 1);
-	if ((r = ent_nl(&q, NULL, NULL)) < 0) snprintf(err, en, "%s: %s", m->iface, r == -ENODEV ? "not up" : strerror(-r));
+	nl_req_init(&q, RTM_DELLINK, NLM_F_ACK, sizeof(struct ifinfomsg));
+	nl_attr(&q, IFLA_IFNAME, m->iface, (int)strlen(m->iface) + 1);
+	if ((r = nl_nl(&q, NULL, NULL)) < 0) snprintf(err, en, "%s: %s", m->iface, r == -ENODEV ? "not up" : strerror(-r));
 	return r;
 }
 
@@ -284,7 +284,7 @@ int netman_mesh_status(FILE *out)
 		netman_mesh m;
 		int up;
 		if (load(names[i], &m, e, sizeof e) < 0) { fprintf(out, "%s down ? %s\n", names[i], e); continue; }
-		up = ent_idx(m.iface) >= 0;
+		up = nl_idx(m.iface) >= 0;
 		if (!strcmp(m.kind, "wg")) {
 			netman_wg_stat st;
 			netman_mesh_node nd[128];
@@ -309,7 +309,7 @@ static int save_file(const char *name, const char *ext, const char *body, size_t
 	int r = mk_mkdirs(netman_mesh_dir);
 	if (r < 0) { snprintf(err, en, "%s: %s", netman_mesh_dir, strerror(-r)); return r; }
 	mk_path(p, sizeof p, netman_mesh_dir, name, ext);
-	if ((r = ent_write_atomic(p, body, len, mode)) < 0) snprintf(err, en, "%.200s: %s", p, strerror(-r));
+	if ((r = nl_write_atomic(p, body, len, mode)) < 0) snprintf(err, en, "%.200s: %s", p, strerror(-r));
 	return r;
 }
 
@@ -324,7 +324,7 @@ static int node_cmd(FILE *out, FILE *err, int argc, char **argv)
 	if (load(argv[1], &m, e, sizeof e) < 0) { fprintf(err, "mesh: %s\n", e); return 1; }
 	if (strcmp(m.kind, "wg")) { fputs("mesh: peer lists are for kind = wg\n", err); return 2; }
 	mk_path(p, sizeof p, netman_mesh_dir, argv[1], "peers");
-	if (ent_slurp(p, txt, sizeof txt) < 0) txt[0] = 0;
+	if (nl_slurp(p, txt, sizeof txt) < 0) txt[0] = 0;
 	if ((cnt = netman_mesh_nodes_parse(txt, n, 128, e, sizeof e)) < 0) { fprintf(err, "mesh: %s\n", e); return 1; }
 	if (!strcmp(argv[2], "list")) { for (int i = 0; i < cnt; i++) fprintf(out, "%s %s %s %s%s\n", n[i].name, n[i].pub, n[i].ep, n[i].addr, !strcmp(n[i].name, m.self) ? "  (this node)" : ""); return 0; }
 	if (!strcmp(argv[2], "add") && argc == 7) {
@@ -360,7 +360,7 @@ int netman_mesh_main(FILE *out, FILE *err, int argc, char **argv)
 		mesh_init(&m);
 		if (!mk_name_ok(argv[1])) { fprintf(err, "mesh: bad name '%s'\n", argv[1]); return 2; }
 		mk_path(p, sizeof p, netman_mesh_dir, argv[1], "mesh");
-		if (ent_slurp(p, txt, sizeof txt) > 0) netman_mesh_parse(txt, &m, e, sizeof e);
+		if (nl_slurp(p, txt, sizeof txt) > 0) netman_mesh_parse(txt, &m, e, sizeof e);
 		for (int i = 2; i < argc; i++) {
 			char *eq = strchr(argv[i], '='), k[24];
 			if (!eq || eq == argv[i] || eq - argv[i] >= 24) { fprintf(err, "mesh: expected key=value, got '%s'\n", argv[i]); return 2; }
@@ -394,7 +394,7 @@ int netman_mesh_main(FILE *out, FILE *err, int argc, char **argv)
 		netman_vpn_b64_encode32(k, b); b[44] = 0;
 		netman_vpn_pubkey(k, pub); netman_vpn_b64_encode32(pub, pb); pb[44] = 0;
 		strcat(b, "\n");
-		if (mk_mkdirs(netman_mesh_dir) < 0 || ent_write_atomic(p, b, strlen(b), 0600) < 0) { fprintf(err, "mesh: cannot write %s\n", p); return 1; }
+		if (mk_mkdirs(netman_mesh_dir) < 0 || nl_write_atomic(p, b, strlen(b), 0600) < 0) { fprintf(err, "mesh: cannot write %s\n", p); return 1; }
 		memset(k, 0, sizeof k); memset(b, 0, sizeof b);
 		fprintf(out, "wrote %s (mode 0600)\npublic key: %s\n", p, pb);
 		return 0;

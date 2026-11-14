@@ -1,8 +1,8 @@
-/* bonding.c - see bonding.h. A thin front end over enterprise/enterprise.c; state comes from sysfs (netman_ent_sys). */
+/* bonding.c - see bonding.h. A thin front end over netlink.c; state comes from sysfs (netman_nl_sys). */
 #include "modkit.h"
 #include "net.h"
 #include "bonding.h"
-#include "enterprise/enterprise.h"
+#include "netlink.h"
 
 const char *netman_bond_modes[7] = { "balance-rr", "active-backup", "balance-xor", "broadcast", "802.3ad", "balance-tlb", "balance-alb" };
 static const char *const mode_help[7] = {
@@ -14,16 +14,16 @@ static const char *const mode_help[7] = {
 static char *sysf(char *b, size_t n, const char *bond, const char *file, const char *sub)
 {
 	char p[300];
-	snprintf(p, sizeof p, "%s/class/net/%s/%s/%s", netman_ent_sys, bond, sub, file);
-	if (ent_slurp(p, b, n) < 0) b[0] = 0;
+	snprintf(p, sizeof p, "%s/class/net/%s/%s/%s", netman_nl_sys, bond, sub, file);
+	if (nl_slurp(p, b, n) < 0) b[0] = 0;
 	for (size_t i = strlen(b); i && (b[i - 1] == '\n' || b[i - 1] == ' '); ) b[--i] = 0;
 	return b;
 }
 static int slave_up(const char *s)
 {
 	char p[300], b[32];
-	snprintf(p, sizeof p, "%s/class/net/%s/operstate", netman_ent_sys, s);
-	if (ent_slurp(p, b, sizeof b) < 0) return 0;
+	snprintf(p, sizeof p, "%s/class/net/%s/operstate", netman_nl_sys, s);
+	if (nl_slurp(p, b, sizeof b) < 0) return 0;
 	return !strncmp(b, "up", 2);
 }
 static int bonds(char out[][32], int max)
@@ -32,7 +32,7 @@ static int bonds(char out[][32], int max)
 	DIR *d;
 	struct dirent *e;
 	int n = 0;
-	snprintf(dir, sizeof dir, "%s/class/net", netman_ent_sys);
+	snprintf(dir, sizeof dir, "%s/class/net", netman_nl_sys);
 	if (!(d = opendir(dir))) return 0;
 	while ((e = readdir(d)) && n < max) {
 		char p[600];
@@ -69,7 +69,7 @@ int netman_bond_status(FILE *out)
 
 static int load_prof(const char *name, netman_ent *e)
 {
-	int r = netman_ent_load(name, e);
+	int r = netman_nl_load(name, e);
 	return r < 0 ? r : (strcmp(e->kind, "bond") && strcmp(e->kind, "team") ? -EINVAL : 0);
 }
 static int forget_prof(const char *name)
@@ -85,9 +85,9 @@ static int slave_prof(const char *bond, const char *slave, int add)
 	if (load_prof(bond, &e) < 0) return 0;   /* live-only bond: nothing to keep in step */
 	for (i = 0; i < e.nmember; i++)
 		if (!strcmp(e.member[i], slave)) break;
-	if (add && i == e.nmember && e.nmember < NETMAN_ENT_MEMBERS) ent_cpy(e.member[e.nmember++], 16, slave);
+	if (add && i == e.nmember && e.nmember < NETMAN_NL_MEMBERS) nl_cpy(e.member[e.nmember++], 16, slave);
 	if (!add && i < e.nmember) { memmove(e.member[i], e.member[i + 1], (size_t)(e.nmember - i - 1) * 16); e.nmember--; }
-	return netman_ent_save(&e);
+	return netman_nl_save(&e);
 }
 
 static int mode_ok(const char *m)
@@ -113,10 +113,10 @@ int netman_bond_main(FILE *out, FILE *err, int argc, char **argv)
 	if (!strcmp(c, "show") && argc == 2) {
 		netman_ent e;
 		char a[300], b[64];
-		netman_ent_init(&e);
-		ent_cpy(e.kind, sizeof e.kind, "bond");
-		ent_cpy(e.name, sizeof e.name, argv[1]);
-		if ((r = netman_ent_bond_show(&e, out)) < 0) { fprintf(err, "bond %s: %s\n", argv[1], r == -ENODEV ? "no such bond" : netman_ent_error()); return 1; }
+		netman_nl_init(&e);
+		nl_cpy(e.kind, sizeof e.kind, "bond");
+		nl_cpy(e.name, sizeof e.name, argv[1]);
+		if ((r = netman_nl_bond_show(&e, out)) < 0) { fprintf(err, "bond %s: %s\n", argv[1], r == -ENODEV ? "no such bond" : netman_nl_error()); return 1; }
 		sysf(b, sizeof b, argv[1], "ad_select", "bonding");
 		if (b[0]) { fprintf(out, "  ad_select %s", b); sysf(b, sizeof b, argv[1], "ad_num_ports", "bonding"); (void)a; if (b[0]) fprintf(out, "  ports %s", b); fputc('\n', out); }
 		fprintf(out, "  profile: %s\n", load_prof(argv[1], &e) == 0 ? "saved (netman bond apply recreates it)" : "none (live only)");
@@ -124,41 +124,41 @@ int netman_bond_main(FILE *out, FILE *err, int argc, char **argv)
 	}
 	if (!strcmp(c, "add") && argc >= 3) {
 		netman_ent e;
-		netman_ent_init(&e);
-		ent_cpy(e.kind, sizeof e.kind, "bond");
+		netman_nl_init(&e);
+		nl_cpy(e.kind, sizeof e.kind, "bond");
 		if (!mk_name_ok(argv[1]) || strlen(argv[1]) > 15) { fprintf(err, "bond: bad name '%s'\n", argv[1]); return 2; }
-		ent_cpy(e.name, sizeof e.name, argv[1]);
+		nl_cpy(e.name, sizeof e.name, argv[1]);
 		for (int i = 2; i < argc; i++) {
 			char *eq = strchr(argv[i], '='), k[24];
 			if (!eq) {
-				if (e.nmember >= NETMAN_ENT_MEMBERS || !mk_name_ok(argv[i]) || strlen(argv[i]) > 15) { fprintf(err, "bond: bad or too many slaves ('%s', max %d)\n", argv[i], NETMAN_ENT_MEMBERS); return 2; }
-				ent_cpy(e.member[e.nmember++], 16, argv[i]);
+				if (e.nmember >= NETMAN_NL_MEMBERS || !mk_name_ok(argv[i]) || strlen(argv[i]) > 15) { fprintf(err, "bond: bad or too many slaves ('%s', max %d)\n", argv[i], NETMAN_NL_MEMBERS); return 2; }
+				nl_cpy(e.member[e.nmember++], 16, argv[i]);
 				continue;
 			}
 			snprintf(k, sizeof k, "%.*s", (int)(eq - argv[i]), argv[i]);
 			eq++;
-			if (!strcmp(k, "mode")) { if (!mode_ok(eq)) { fprintf(err, "bond: unknown mode '%s' (netman bond modes)\n", eq); return 2; } ent_cpy(e.mode, sizeof e.mode, eq); }
+			if (!strcmp(k, "mode")) { if (!mode_ok(eq)) { fprintf(err, "bond: unknown mode '%s' (netman bond modes)\n", eq); return 2; } nl_cpy(e.mode, sizeof e.mode, eq); }
 			else if (!strcmp(k, "miimon")) { if (mk_int(eq, 0, 10000, &e.miimon)) { fputs("bond: miimon is 0..10000 ms\n", err); return 2; } }
 			else if (!strcmp(k, "mtu")) { if (mk_int(eq, 68, 65535, &e.mtu)) { fputs("bond: bad mtu\n", err); return 2; } }
-			else if (!strcmp(k, "primary")) ent_cpy(e.primary, sizeof e.primary, eq);
-			else if (!strcmp(k, "lacp_rate")) ent_cpy(e.lacp_rate, sizeof e.lacp_rate, eq);
-			else if (!strcmp(k, "hash")) ent_cpy(e.hash, sizeof e.hash, eq);
-			else if (!strcmp(k, "addr")) ent_cpy(e.addr, sizeof e.addr, eq);
+			else if (!strcmp(k, "primary")) nl_cpy(e.primary, sizeof e.primary, eq);
+			else if (!strcmp(k, "lacp_rate")) nl_cpy(e.lacp_rate, sizeof e.lacp_rate, eq);
+			else if (!strcmp(k, "hash")) nl_cpy(e.hash, sizeof e.hash, eq);
+			else if (!strcmp(k, "addr")) nl_cpy(e.addr, sizeof e.addr, eq);
 			else { fprintf(err, "bond: unknown key '%s'\n", k); return 2; }
 		}
-		if ((r = netman_ent_check(&e)) < 0) { fprintf(err, "bond: %s\n", netman_ent_error()); return 2; }
-		if ((r = netman_ent_bond_add(&e)) < 0) { fprintf(err, "bond %s: %s\n", e.name, r == -EEXIST ? "already exists (netman bond del first)" : netman_ent_error()); return 1; }
-		if ((r = netman_ent_save(&e)) < 0) { fprintf(err, "bond %s created, but the profile was not saved: %s\n", e.name, netman_ent_error()); return 1; }
+		if ((r = netman_nl_check(&e)) < 0) { fprintf(err, "bond: %s\n", netman_nl_error()); return 2; }
+		if ((r = netman_nl_bond_add(&e)) < 0) { fprintf(err, "bond %s: %s\n", e.name, r == -EEXIST ? "already exists (netman bond del first)" : netman_nl_error()); return 1; }
+		if ((r = netman_nl_save(&e)) < 0) { fprintf(err, "bond %s created, but the profile was not saved: %s\n", e.name, netman_nl_error()); return 1; }
 		fprintf(out, "bond %s up with %d slave%s (profile saved)\n", e.name, e.nmember, e.nmember == 1 ? "" : "s");
 		return 0;
 	}
 	if (!strcmp(c, "del") && argc == 2) {
 		netman_ent e;
-		netman_ent_init(&e);
-		ent_cpy(e.kind, sizeof e.kind, "bond");
-		ent_cpy(e.name, sizeof e.name, argv[1]);
+		netman_nl_init(&e);
+		nl_cpy(e.kind, sizeof e.kind, "bond");
+		nl_cpy(e.name, sizeof e.name, argv[1]);
 		if (!mk_name_ok(argv[1])) return 2;
-		r = netman_ent_bond_del(&e);
+		r = netman_nl_bond_del(&e);
 		if (r < 0 && r != -ENODEV) { fprintf(err, "bond %s: %s\n", argv[1], strerror(-r)); return 1; }
 		if (forget_prof(argv[1]) < 0 && r == -ENODEV) { fprintf(err, "bond %s: no such bond or profile\n", argv[1]); return 1; }
 		fprintf(out, "bond %s removed\n", argv[1]);
@@ -167,19 +167,19 @@ int netman_bond_main(FILE *out, FILE *err, int argc, char **argv)
 	if (!strcmp(c, "slave") && argc == 4 && (!strcmp(argv[1], "add") || !strcmp(argv[1], "del"))) {
 		int add = !strcmp(argv[1], "add");
 		if (!mk_name_ok(argv[2]) || !mk_name_ok(argv[3])) return 2;
-		if ((r = netman_ent_bond_slave(argv[2], argv[3], add)) < 0) { fprintf(err, "bond: %s\n", netman_ent_error()); return 1; }
+		if ((r = netman_nl_bond_slave(argv[2], argv[3], add)) < 0) { fprintf(err, "bond: %s\n", netman_nl_error()); return 1; }
 		slave_prof(argv[2], argv[3], add);
 		fprintf(out, "%s %s %s\n", argv[3], add ? "enslaved to" : "released from", argv[2]);
 		return 0;
 	}
 	if (!strcmp(c, "apply") && argc == 1) {
 		char names[64][64];
-		int n = netman_ent_list(names, 64), bad = 0, done = 0;
+		int n = netman_nl_list(names, 64), bad = 0, done = 0;
 		for (int i = 0; i < n; i++) {
 			netman_ent e;
-			if (netman_ent_load(names[i], &e) < 0 || (strcmp(e.kind, "bond") && strcmp(e.kind, "team"))) continue;
-			r = netman_ent_add(&e);
-			if (r < 0 && r != -EEXIST) { fprintf(err, "bond %s: %s\n", names[i], netman_ent_error()); bad++; } else { done++; fprintf(out, "%s %s\n", names[i], r == -EEXIST ? "already there" : "created"); }
+			if (netman_nl_load(names[i], &e) < 0 || (strcmp(e.kind, "bond") && strcmp(e.kind, "team"))) continue;
+			r = netman_nl_add(&e);
+			if (r < 0 && r != -EEXIST) { fprintf(err, "bond %s: %s\n", names[i], netman_nl_error()); bad++; } else { done++; fprintf(out, "%s %s\n", names[i], r == -EEXIST ? "already there" : "created"); }
 		}
 		if (!done && !bad) fputs("no saved bond profiles\n", out);
 		return bad ? 1 : 0;

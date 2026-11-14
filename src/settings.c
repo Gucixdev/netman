@@ -29,7 +29,7 @@ static const struct { const char *sec, *tab; int root; } nset_secs[] = {
 
 /* keys whose running consumer reads them only at start (a daemon, a tor process, a live ECMP loop) */
 static const int nset_restart_keys[] = { NC_NMAPI_ENABLED, NC_NMAPI_REFRESH, NC_TOR_MODE, NC_TOR_SOCKS, NC_TOR_TRANS, NC_TOR_DNS, NC_TOR_CONTROL, NC_TOR_DIR,
-	NC_TOR_USER, NC_TOR_UIDS, NC_TOR_IFACES, NC_TOR_OBFS4, NC_TOR_SNOW, NC_SSH_STATE, NC_NET_STATE_DIR, NC_ENT_PROBE_MS };
+	NC_TOR_USER, NC_TOR_UIDS, NC_TOR_IFACES, NC_TOR_OBFS4, NC_TOR_SNOW, NC_SSH_STATE, NC_NET_STATE_DIR, NC_NL_PROBE_MS };
 
 static int sec_of(int k)
 {

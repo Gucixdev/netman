@@ -88,11 +88,11 @@ int netman_ssh_parse(const char *text, netman_ssh *p, char *err, size_t en)
 	netman_ssh_init(p);
 	if (!c) return -1;
 	for (ln = strtok_r(c, "\n", &sv); ln; ln = strtok_r(NULL, "\n", &sv)) {
-		char *q = ent_trim(ln), *eq;
+		char *q = nl_trim(ln), *eq;
 		if (!*q || *q == '#') continue;
 		if (!(eq = strchr(q, '='))) { snprintf(err, en, "not key = value: '%s'", q); free(c); return -1; }
 		*eq = 0;
-		if (set(p, ent_trim(q), ent_trim(eq + 1), err, en)) { free(c); return -1; }
+		if (set(p, nl_trim(q), nl_trim(eq + 1), err, en)) { free(c); return -1; }
 	}
 	free(c);
 	return 0;
@@ -172,14 +172,14 @@ static void state_write(const netman_ssh_cfg *c, const char *name, const sstate 
 	char p[400], b[300];
 	int l = snprintf(b, sizeof b, "pid=%ld\nssh_pid=%ld\nsince=%ld\nrestarts=%d\nlast_exit=%d\nstate=%s\n", s->pid, s->ssh_pid, s->since, s->restarts, s->last_exit, s->state);
 	sp(c, name, "state", p, sizeof p);
-	ent_write_atomic(p, b, (size_t)l, 0644);
+	nl_write_atomic(p, b, (size_t)l, 0644);
 }
 static int state_read(const netman_ssh_cfg *c, const char *name, sstate *s)
 {
 	char p[400], b[400], *ln, *sv = NULL;
 	memset(s, 0, sizeof *s);
 	sp(c, name, "state", p, sizeof p);
-	if (ent_slurp(p, b, sizeof b) < 0) return -1;
+	if (nl_slurp(p, b, sizeof b) < 0) return -1;
 	for (ln = strtok_r(b, "\n", &sv); ln; ln = strtok_r(NULL, "\n", &sv)) {
 		char *v = strchr(ln, '=');
 		if (!v) continue;
@@ -268,7 +268,7 @@ static int load(const netman_ssh_cfg *c, const char *name, netman_ssh *p, char *
 	char path[400], txt[4096];
 	if (!mk_name_ok(name)) { snprintf(err, en, "bad profile name '%s'", name); return -1; }
 	mk_path(path, sizeof path, c->dir, name, "ssh");
-	if (ent_slurp(path, txt, sizeof txt) < 0) { snprintf(err, en, "no ssh profile '%s' in %s (netman ssh save %s host=...)", name, c->dir, name); return -1; }
+	if (nl_slurp(path, txt, sizeof txt) < 0) { snprintf(err, en, "no ssh profile '%s' in %s (netman ssh save %s host=...)", name, c->dir, name); return -1; }
 	if (netman_ssh_parse(txt, p, err, en) < 0) return -1;
 	snprintf(p->name, sizeof p->name, "%s", name);
 	return netman_ssh_check(p, err, en);
@@ -374,7 +374,7 @@ static int scan(const netman_ssh_cfg *c, const char *host, int port, char *out, 
 	char ps[8], *a[] = { (char *)c->keyscan, "-T", "8", "-p", ps, "--", (char *)host, NULL };
 	int r;
 	snprintf(ps, sizeof ps, "%d", port);
-	/* keyscan prints '#' comment lines to stderr and the keys to stdout; ent_exec merges them: drop comments below */
+	/* keyscan prints '#' comment lines to stderr and the keys to stdout; nl_exec merges them: drop comments below */
 	r = mk_run(a, out, n);
 	if (r == -ENOENT) snprintf(out, n, "'%s' not found (ssh.keyscan_bin)", c->keyscan);
 	return r;
@@ -384,7 +384,7 @@ static int fingerprints(const netman_ssh_cfg *c, const char *keys, char fp[][200
 {
 	char *a[] = { (char *)c->keygen, "-l", "-f", "-", NULL }, out[4096], *ln, *sv = NULL;
 	int n = 0;
-	if (ent_exec(a, keys, out, sizeof out) < 0) return 0;
+	if (nl_exec(a, keys, out, sizeof out) < 0) return 0;
 	for (ln = strtok_r(out, "\n", &sv); ln && n < max; ln = strtok_r(NULL, "\n", &sv)) snprintf(fp[n++], 200, "%s", ln);
 	return n;
 }
@@ -483,7 +483,7 @@ static int cmd_exec(const netman_ssh_cfg *c, const netman_ssh *p, int check, int
 	a[k] = NULL;
 	{
 		char o[4096];
-		int r = ent_exec(a, NULL, o, sizeof o);
+		int r = nl_exec(a, NULL, o, sizeof o);
 		fputs(o, r < 0 && check ? err : out);
 		if (r == -ENOENT) fprintf(err, "ssh: '%s' not found\n", c->bin);
 		return r < 0 ? 1 : 0;
@@ -505,7 +505,7 @@ int netman_ssh_main(const netman_ssh_cfg *c, FILE *out, FILE *err, int argc, cha
 		if (!mk_name_ok(argv[1])) { fprintf(err, "ssh: bad profile name '%s'\n", argv[1]); return 2; }
 		mk_path(path, sizeof path, c->dir, argv[1], "ssh");
 		netman_ssh_init(&p);
-		if (ent_slurp(path, txt, sizeof txt) > 0) netman_ssh_parse(txt, &p, e, sizeof e);   /* save edits an existing profile */
+		if (nl_slurp(path, txt, sizeof txt) > 0) netman_ssh_parse(txt, &p, e, sizeof e);   /* save edits an existing profile */
 		snprintf(p.name, sizeof p.name, "%s", argv[1]);
 		for (int i = 2; i < argc; i++) {
 			char *eq = strchr(argv[i], '='), k[24];
@@ -517,7 +517,7 @@ int netman_ssh_main(const netman_ssh_cfg *c, FILE *out, FILE *err, int argc, cha
 		if (netman_ssh_check(&p, e, sizeof e) < 0) { fprintf(err, "ssh: %s\n", e); return 2; }
 		l = snprintf(body, sizeof body, "# netman ssh profile\n");
 		l += netman_ssh_format(&p, body + l, sizeof body - l);
-		if (mk_mkdirs(c->dir) < 0 || ent_write_atomic(path, body, (size_t)l, 0600) < 0) { fprintf(err, "ssh: cannot write %s\n", path); return 1; }
+		if (mk_mkdirs(c->dir) < 0 || nl_write_atomic(path, body, (size_t)l, 0600) < 0) { fprintf(err, "ssh: cannot write %s\n", path); return 1; }
 		fprintf(out, "saved %s\n", p.name);
 		return 0;
 	}

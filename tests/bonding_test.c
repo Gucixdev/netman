@@ -1,13 +1,13 @@
 #define _GNU_SOURCE
-/* bonding_test.c - src/mods/bonding.c: the `bond` front end over enterprise.c. Status parsing runs against a FAKE sysfs tree
- * (netman_ent_sys); the real bonds are built with rtnetlink in the test's OWN user+net namespace (host network never touched).
+/* bonding_test.c - src/mods/bonding.c: the `bond` front end over netlink.c. Status parsing runs against a FAKE sysfs tree
+ * (netman_nl_sys); the real bonds are built with rtnetlink in the test's OWN user+net namespace (host network never touched).
  * `ip` is used only to cross-check. SKIP when the kernel will not make a bond there.
- * build (from netman/):  cc -std=gnu11 -O1 -Isrc/mods -o /tmp/bonding_test tests/bonding_test.c src/mods/bonding.c src/mods/enterprise/{enterprise,tether,licence}.c */
+ * build (from netman/):  cc -std=gnu11 -O1 -Isrc/mods -o /tmp/bonding_test tests/bonding_test.c src/mods/bonding.c src/mods/{netlink,wol,tether,licence}.c */
 #define NETMAN_NET_IMPLEMENTATION
 #include "../src/mods/net.h"
 #include "../src/mods/bonding.h"
-#include "../src/mods/enterprise/enterprise.h"
-#include "../src/mods/enterprise/entcore.h"
+#include "../src/mods/netlink.h"
+#include "../src/mods/netlink_priv.h"
 #include <sched.h>
 #include <sys/stat.h>
 
@@ -38,7 +38,7 @@ static void put(const char *root, const char *rel, const char *txt)
 {
 	char p[400], d[400]; FILE *f; char *s;
 	snprintf(p, sizeof p, "%s/%s", root, rel); snprintf(d, sizeof d, "%s", p);
-	s = strrchr(d, '/'); *s = 0; ent_mkdirs(d);
+	s = strrchr(d, '/'); *s = 0; nl_mkdirs(d);
 	f = fopen(p, "w"); fputs(txt, f); fclose(f);
 }
 static char *run(int argc, char **argv, int *rc, char *buf, size_t n)
@@ -72,7 +72,7 @@ int main(void)
 		put(root, "class/net/bond2/bonding/mode", "balance-rr 0\n");
 		put(root, "class/net/bond2/bonding/slaves", "\n");
 		put(root, "class/net/lo/operstate", "unknown\n");
-		netman_ent_sys = root;
+		netman_nl_sys = root;
 		char *a[] = { "status" };
 		run(1, a, &rc, buf, sizeof buf);
 		CHK(rc == 0 && strstr(buf, "bond0 degraded active-backup  slaves 1/2 up  active eth0"), "bond0 degraded: %s", buf);
@@ -82,7 +82,7 @@ int main(void)
 		char *m[] = { "modes" };
 		run(1, m, &rc, buf, sizeof buf);
 		CHK(strstr(buf, "802.3ad") && strstr(buf, "active-backup"), "modes listed");
-		netman_ent_sys = "/sys";
+		netman_nl_sys = "/sys";
 	}
 	/* ---- argument checking (nothing reaches the kernel) ---- */
 	{
@@ -96,7 +96,7 @@ int main(void)
 	if (enter_ns() < 0) { puts("SKIP live: no user+net namespace"); goto done; }
 	{
 		char conf[300];
-		snprintf(conf, sizeof conf, "%s/conf", dir); ent_mkdirs(conf); netman_conf_dir = conf;
+		snprintf(conf, sizeof conf, "%s/conf", dir); nl_mkdirs(conf); netman_conf_dir = conf;
 		sh("ip link add eth1 type dummy; ip link add eth2 type dummy; ip link add eth3 type dummy", o, sizeof o);
 		CHK(if_nametoindex("eth3") != 0, "dummies (needs ip)");
 		char *a[] = { "add", "bnd0", "mode=active-backup", "miimon=100", "primary=eth1", "eth1", "eth2" };
@@ -114,7 +114,7 @@ int main(void)
 		char *s2[] = { "slave", "del", "bnd0", "eth3" };
 		run(4, s2, &rc, buf, sizeof buf); CHK(rc == 0, "slave del: %s", buf);
 		sh("ip link show eth3", o, sizeof o); CHK(!strstr(o, "master bnd0"), "eth3 released");
-		{ netman_ent e; netman_ent_load("bnd0", &e); CHK(e.nmember == 2, "profile follows slave changes (%d)", e.nmember); }
+		{ netman_ent e; netman_nl_load("bnd0", &e); CHK(e.nmember == 2, "profile follows slave changes (%d)", e.nmember); }
 		char *dl[] = { "del", "bnd0" };
 		run(2, dl, &rc, buf, sizeof buf); CHK(rc == 0 && if_nametoindex("bnd0") == 0, "bond del: %s", buf);
 		snprintf(buf, sizeof buf, "%s/conf/bnd0.ent", dir); CHK(access(buf, F_OK) != 0, "profile removed");

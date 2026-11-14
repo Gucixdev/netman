@@ -3,11 +3,11 @@
  * can be told to die N times first or to create a tun device). No real ssh is run, no server is contacted.
  * Covers: profile parser/validator (host key checking can never be turned off), the exact ssh argv, supervisor start/stop/auto-reconnect,
  * hostkey/trust (a key is stored only when its fingerprint matches), control-master exec/check, and `ssh -w` tun address setup (private netns).
- * build (from netman/):  cc -std=gnu11 -O1 -Isrc/mods -o /tmp/ssh_test tests/ssh_test.c src/mods/ssh.c src/mods/enterprise/{enterprise,tether,licence}.c */
+ * build (from netman/):  cc -std=gnu11 -O1 -Isrc/mods -o /tmp/ssh_test tests/ssh_test.c src/mods/ssh.c src/mods/{netlink,wol,tether,licence}.c */
 #define NETMAN_NET_IMPLEMENTATION
 #include "../src/mods/net.h"
 #include "../src/mods/ssh.h"
-#include "../src/mods/enterprise/entcore.h"
+#include "../src/mods/netlink_priv.h"
 #include <sched.h>
 #include <sys/stat.h>
 

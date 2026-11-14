@@ -1061,7 +1061,7 @@ static const char *nm__ent_link(const char *ifn, int *lvl)
 static void nm__ent_members(char *out, size_t n, const char *dev, const netman_ent *prof)
 {
 	char m[16][16];
-	int k = dev ? netman_ent_members(dev, m, 16) : 0;
+	int k = dev ? netman_nl_members(dev, m, 16) : 0;
 	size_t o = 0;
 	out[0] = 0;
 	if (k > 0) { for (int i = 0; i < k && o + 20 < n; i++) o += (size_t)snprintf(out + o, n - o, "%s%s", i ? " " : "", m[i]); return; }
@@ -1071,9 +1071,9 @@ static void nm__ent_members(char *out, size_t n, const char *dev, const netman_e
 
 static void nm__ent_dev_row(nm_ui *u, const char *kind, const char *name, const netman_ent *prof)   /* kind: bond bridge vlan */
 {
-	netman_ent_info in;
+	netman_nl_info in;
 	char mem[120] = "";
-	int live = netman_ent_getinfo(name, &in) == 0;
+	int live = netman_nl_getinfo(name, &in) == 0;
 	const char *state = !live ? "absent" : in.up ? "up" : "down";
 	int lvl = !live ? 1 : in.up ? 0 : 1;
 	if (!strcmp(kind, "bond")) {
@@ -1138,13 +1138,13 @@ static void nm__ent_refresh(nm_ui *u)
 	if (u->tab == NM_TOR) { nm__tor_refresh(u); return; }
 	if (u->tab >= NM_SSH) { nm__mod_refresh(u); return; }
 	char names[64][64];
-	int k = netman_ent_list(names, 64);
+	int k = netman_nl_list(names, 64);
 	netman_if t[NETMAN_MAXIF];
 	int nif;
 	u->nent = 0;
 	for (int i = 0; i < k; i++) {
 		netman_ent e;
-		if (netman_ent_load(names[i], &e) != 0) { nm__ent_add(u, "profile", names[i], "invalid", 2, names[i], "%s", netman_ent_error()); continue; }
+		if (netman_nl_load(names[i], &e) != 0) { nm__ent_add(u, "profile", names[i], "invalid", 2, names[i], "%s", netman_nl_error()); continue; }
 		if (!strcmp(e.kind, "bond") || !strcmp(e.kind, "team")) nm__ent_dev_row(u, "bond", e.name, &e);
 		else if (!strcmp(e.kind, "bridge")) nm__ent_dev_row(u, "bridge", e.name, &e);
 		else if (!strcmp(e.kind, "vlan") || !strcmp(e.kind, "macvlan") || !strcmp(e.kind, "ipvlan")) nm__ent_dev_row(u, "vlan", e.name, &e);
@@ -1164,15 +1164,15 @@ static void nm__ent_refresh(nm_ui *u)
 	}
 	nif = netman_list(t, NETMAN_MAXIF);   /* live bonds / bridges / vlans no profile of ours made */
 	for (int i = 0; i < nif; i++) {
-		netman_ent_info in;
+		netman_nl_info in;
 		const char *kind;
-		if (netman_ent_getinfo(t[i].name, &in) != 0) continue;
+		if (netman_nl_getinfo(t[i].name, &in) != 0) continue;
 		kind = !strcmp(in.kind, "bond") ? "bond" : !strcmp(in.kind, "bridge") ? "bridge" : !strcmp(in.kind, "vlan") || !strcmp(in.kind, "macvlan") || !strcmp(in.kind, "ipvlan") ? "vlan" : NULL;
 		if (kind && !nm__ent_has(u, kind, t[i].name)) nm__ent_dev_row(u, kind, t[i].name, NULL);
 	}
 	if (nc_enabled("tether")) {
-		netman_ent_tether_dev d[16];
-		int nd = netman_ent_tether_detect(d, 16);
+		netman_nl_tether_dev d[16];
+		int nd = netman_nl_tether_detect(d, 16);
 		for (int i = 0; i < nd; i++) {
 			int lvl;
 			const char *st;
@@ -1627,7 +1627,7 @@ static void nm__info_ent(nm_ui *u, const nm_ent *e, int full)
 			nm__dlv(u, "holder", l.holder); nm__dlv(u, "licence kind", l.kind);
 			if (l.days == 99999) nm__dlv(u, "expires", "never"); else { char v[64]; snprintf(v, sizeof v, "%d day%s %s", l.days < 0 ? -l.days : l.days, (l.days == 1 || l.days == -1) ? "" : "s", l.days < 0 ? "ago" : "left"); nm__dlv(u, "expires in", v); }
 			nm__dlv(u, "warn window", netman_config_str(&nc_cfg, NC_LIC_WARN));
-		} else nm__dlv(u, "licence file", netman_ent_error());
+		} else nm__dlv(u, "licence file", netman_nl_error());
 		nm__dlv(u, "directory", netman_lic_dir);
 		nm__dl(u, "(keys are never shown; renew: netman licence renew NAME)");
 		return;
@@ -1638,22 +1638,22 @@ static void nm__info_ent(nm_ui *u, const nm_ent *e, int full)
 		size_t sz = 0;
 		FILE *m;
 		nm__dlv(u, "profile", e->prof);
-		if (netman_ent_load(e->prof, &p) == 0 && (m = open_memstream(&buf, &sz))) {
+		if (netman_nl_load(e->prof, &p) == 0 && (m = open_memstream(&buf, &sz))) {
 			nm__dl(u, "--- live state ---");
-			netman_ent_show(&p, m);
+			netman_nl_show(&p, m);
 			fclose(m);
 			if (buf) nm__dl_text(u, buf, "");
 			free(buf);
 			buf = NULL;
 			if (full) {
 				char raw[8192];
-				if (netman_ent_format(&p, raw, sizeof raw) >= 0) { nm__dl(u, "--- profile (%s.ent) ---", e->prof); nm__dl_text(u, raw, "password"); }
+				if (netman_nl_format(&p, raw, sizeof raw) >= 0) { nm__dl(u, "--- profile (%s.ent) ---", e->prof); nm__dl_text(u, raw, "password"); }
 			}
 		}
 	} else if (full || strcmp(e->kind, "tether")) nm__dl(u, "not created by a netman profile");
 	{
-		netman_ent_info in;
-		if (strcmp(e->kind, "uplink") && netman_ent_getinfo(e->name, &in) == 0) {
+		netman_nl_info in;
+		if (strcmp(e->kind, "uplink") && netman_nl_getinfo(e->name, &in) == 0) {
 			char v[80];
 			snprintf(v, sizeof v, "index %d, mtu %d, master %d", in.idx, in.mtu, in.master);
 			nm__dl(u, "--- kernel ---"); nm__dlv(u, "link", v);

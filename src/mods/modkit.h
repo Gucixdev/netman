@@ -19,11 +19,11 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-#include "enterprise/entcore.h"
+#include "netlink_priv.h"
 #define MK static __attribute__((unused))
 
 /* NAME: letters, digits, _ - . ; no leading dot or dash (it ends up in file names and argv) */
-MK int mk_name_ok(const char *s) { return ent_safe_name(s, 32) && s[0] != '-'; }
+MK int mk_name_ok(const char *s) { return nl_safe_name(s, 32) && s[0] != '-'; }
 
 /* a value that goes into an argv slot or a generated file: printable, no space, no quote, no leading '-' (no option injection) */
 MK int mk_token_ok(const char *s, size_t max)
@@ -44,11 +44,11 @@ MK int mk_kv_read(const char *path, int (*cb)(const char *k, const char *v, void
 	int r = 0;
 	if (!f) return -errno;
 	while (fgets(line, sizeof line, f)) {
-		char *p = ent_trim(line), *eq;
+		char *p = nl_trim(line), *eq;
 		if (!*p || *p == '#') continue;
 		if (!(eq = strchr(p, '='))) { r = -EINVAL; break; }
 		*eq = 0;
-		if ((r = cb(ent_trim(p), ent_trim(eq + 1), u)) < 0) break;
+		if ((r = cb(nl_trim(p), nl_trim(eq + 1), u)) < 0) break;
 	}
 	fclose(f);
 	return r;
@@ -98,21 +98,21 @@ MK int mk_run(char *const argv[], char *out, size_t n)
 {
 	char scratch[512];
 	if (!out) { out = scratch; n = sizeof scratch; }
-	return ent_exec(argv, NULL, out, n);
+	return nl_exec(argv, NULL, out, n);
 }
 
 MK int mk_pid_alive(long pid) { return pid > 1 && (kill((pid_t)pid, 0) == 0 || errno == EPERM); }
 MK long mk_pid_read(const char *path)
 {
 	char b[32];
-	if (ent_slurp(path, b, sizeof b) < 0) return 0;
+	if (nl_slurp(path, b, sizeof b) < 0) return 0;
 	return atol(b);
 }
 MK int mk_pid_write(const char *path, long pid)
 {
 	char b[32];
 	int l = snprintf(b, sizeof b, "%ld\n", pid);
-	return ent_write_atomic(path, b, (size_t)l, 0644);
+	return nl_write_atomic(path, b, (size_t)l, 0644);
 }
 
 /* "1" / "yes" / "true" / "on" */
@@ -131,5 +131,5 @@ MK int mk_int(const char *v, int lo, int hi, int *o)
 
 MK void mk_path(char *o, size_t n, const char *dir, const char *name, const char *ext) { snprintf(o, n, "%s/%s.%s", dir, name, ext); }
 
-MK int mk_mkdirs(const char *d) { return ent_mkdirs(d); }
+MK int mk_mkdirs(const char *d) { return nl_mkdirs(d); }
 #endif

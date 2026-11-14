@@ -1,7 +1,7 @@
 /* bonding.h - link aggregation (bonding): the plain, non-enterprise front end. Real code in bonding.c.
  *
- * ONE implementation: the rtnetlink code that creates bonds, enslaves and releases ports lives in enterprise/enterprise.c
- * (netman_ent_bond_add / _del / _show / netman_ent_bond_slave). This module re-exports it as `netman bond ...` with live status read
+ * ONE implementation: the rtnetlink code that creates bonds, enslaves and releases ports lives in netlink.c
+ * (netman_nl_bond_add / _del / _show / netman_nl_bond_slave). This module re-exports it as `netman bond ...` with live status read
  * from sysfs, and keeps the bond as an enterprise profile NAME.ent (kind bond), so `netman ent apply` and `netman bond apply` rebuild it at boot.
  *
  * Modes: balance-rr active-backup balance-xor broadcast 802.3ad balance-tlb balance-alb (numbers 0..6 accepted). 802.3ad needs an LACP

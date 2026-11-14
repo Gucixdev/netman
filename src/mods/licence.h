@@ -10,7 +10,7 @@
  * Key rotation: NAME.key holds a base64 X25519 private key (WireGuard format, 0600). rotate = generate a new key, write
  * NAME.key.new, hardlink the old one to NAME.key.prev, rename the new over NAME.key, then run the optional apply hook
  * (NAME PUBKEY) - on hook failure the old key is restored. The curve arithmetic is in licence.c: no `wg` binary needed.
- * Return 0/count or a negative errno; text in netman_ent_error() (enterprise.h).
+ * Return 0/count or a negative errno; text in netman_nl_error() (netlink.h).
  */
 #ifndef NETMAN_LICENCE_H
 #define NETMAN_LICENCE_H

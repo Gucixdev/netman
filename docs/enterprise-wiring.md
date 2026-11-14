@@ -3,36 +3,36 @@
 The logic is done and tested in real `.c` modules; core netman only needs the interface lines below. Nothing in
 `src/cli.h`, `src/config.h`, `src/config.c`, `src/help.c`, `src/netman.1` or `run` was touched by this work.
 
-Modules: `src/mods/enterprise/enterprise.{h,c}` (bonding/team, bridge+STP+vlan filtering, vlan/QinQ, macvlan, ipvlan, veth, dummy,
+Modules: `src/mods/enterprise.{h,c}` (bonding/team, bridge+STP+vlan filtering, vlan/QinQ, macvlan, ipvlan, veth, dummy,
 routes/rules/tables, ECMP failover, link settings, IPv6/PD, Wake-on-LAN, wired 802.1X, `.ent` profiles),
-`src/mods/enterprise/tether.c` (USB/BT detect, share-out, client mode, BT PAN), `src/mods/enterprise/licence.{h,c}` (licences, hook renewal,
-WireGuard key rotation), `src/mods/enterprise/entcore.h` (private helpers, not an API). Test: `tests/enterprise_test.c`.
+`src/mods/tether.c` (USB/BT detect, share-out, client mode, BT PAN), `src/mods/licence.{h,c}` (licences, hook renewal,
+WireGuard key rotation), `src/mods/netlink_priv.h` (private helpers, not an API). Test: `tests/netlink_test.c`.
 
 ## 1. Build (run)
 
 `netman.c` stays one translation unit; the three new modules are separate `.c` files. In `run` the cc line becomes
 
-    "$cc" -std=gnu11 -Wall -Wextra -O2 -Isrc -Isrc/mods src/netman.c src/config.c src/mods/enterprise/enterprise.c src/mods/enterprise/tether.c src/mods/enterprise/licence.c -o bin/netman.tmp
+    "$cc" -std=gnu11 -Wall -Wextra -O2 -Isrc -Isrc/mods src/netman.c src/config.c src/mods/netlink.c src/mods/wol.c src/mods/tether.c src/mods/licence.c -o bin/netman.tmp
 
 and in `src/netman.c`, after `#include "mods/net.h"` (net.h supplies the implementation the modules link against):
 
-    #include "mods/enterprise/enterprise.h"
-    #include "mods/enterprise/licence.h"
+    #include "mods/netlink.h"
+    #include "mods/licence.h"
 
-Bluetooth PAN additionally needs `-DNETMAN_ENT_DBUS` and dbus.h's implementation in the same translation unit as
+Bluetooth PAN additionally needs `-DNETMAN_NL_DBUS` and dbus.h's implementation in the same translation unit as
 tether.c, which a separate .c cannot get from netman.c's static dbus code. Until bluez PAN is wanted, leave the flag off:
-`btpan` then returns -ENOSYS with a clear message. (To enable it, compile tether.c with `-DNETMAN_ENT_DBUS` and
+`btpan` then returns -ENOSYS with a clear message. (To enable it, compile tether.c with `-DNETMAN_NL_DBUS` and
 `-DNETMAN_DBUS_IMPLEMENTATION` plus `_GNU_SOURCE`, and drop the dbus code from netman.c or expose its entry points.)
 
 Test build and run (needs only a compiler; it makes its own user+net namespace and never touches the host network):
 
-    cc -O2 -o tests/enterprise_test tests/enterprise_test.c src/mods/enterprise/enterprise.c src/mods/enterprise/tether.c src/mods/enterprise/licence.c
-    nice -n 19 tests/enterprise_test
+    cc -O2 -o tests/netlink_test tests/netlink_test.c src/mods/netlink.c src/mods/wol.c src/mods/tether.c src/mods/licence.c
+    nice -n 19 tests/netlink_test
 
 ## 2. Config: `src/config.h` (add inside NC_KEYS, before the TUI lines) and `src/config.c`
 
-    X(ENT_ENABLED, "enterprise", "enabled", "bool", "no", "Enterprise networking: bonding, bridges, vlans, routes and rules, ECMP, tethering. Off by default: it changes links and routes.") \
-    X(ENT_PROBE_MS, "enterprise", "probe_ms", "int:100:60000", "1000", "ECMP: per-uplink ICMP probe timeout and the tick between probes (ms).") \
+    X(NL_ENABLED, "enterprise", "enabled", "bool", "no", "Enterprise networking: bonding, bridges, vlans, routes and rules, ECMP, tethering. Off by default: it changes links and routes.") \
+    X(NL_PROBE_MS, "enterprise", "probe_ms", "int:100:60000", "1000", "ECMP: per-uplink ICMP probe timeout and the tick between probes (ms).") \
     X(LIC_DIR, "enterprise", "licence_dir", "path", "/etc/netman/licences", "Where licence (.lic) and VPN key (.key) files live.") \
     X(LIC_WARN, "enterprise", "licence_warn_days", "int:0:365", "30", "`licence status` flags a licence expiring within this many days.") \
     X(LIC_RENEW_HOOK, "enterprise", "renew_hook", "path", "", "Command (split on spaces, no shell) run by `licence renew NAME`: gets NAME CURRENT_PATH NEW_PATH and must write the renewed licence to NEW_PATH. netman never contacts a network for renewal itself.") \
@@ -40,7 +40,7 @@ Test build and run (needs only a compiler; it makes its own user+net namespace a
 
 `src/config.c`: add `"enterprise"` to `sections[]` (after `"firewall"`).
 
-`src/cli.h` `nc_enabled()` table: add `{ "enterprise", NC_ENT_ENABLED }`.
+`src/cli.h` `nc_enabled()` table: add `{ "enterprise", NC_NL_ENABLED }`.
 
 Before any command: apply config to the module tunables once (e.g. in `main` after loading `nc_cfg`):
 
@@ -52,63 +52,63 @@ Before any command: apply config to the module tunables once (e.g. in `main` aft
 ## 3. Handlers (`src/cli.h`, above the command table)
 
     /* ---- enterprise ---------------------------------------------------------------------------------------------- */
-    static int nc_ent_off(void) { if (netman_config_bool(&nc_cfg, NC_ENT_ENABLED)) return 0; fputs("netman: enterprise changes are disabled in config (netman config set enterprise.enabled yes)\n", stderr); return 3; }
-    static int nc_ent_err(int r) { if (r >= 0) return 0; fprintf(stderr, "netman: %s\n", r == -22 && *netman_ent_error() ? netman_ent_error() : *netman_ent_error() ? netman_ent_error() : strerror(-r)); return 1; }
+    static int nc_ent_off(void) { if (netman_config_bool(&nc_cfg, NC_NL_ENABLED)) return 0; fputs("netman: enterprise changes are disabled in config (netman config set enterprise.enabled yes)\n", stderr); return 3; }
+    static int nc_ent_err(int r) { if (r >= 0) return 0; fprintf(stderr, "netman: %s\n", r == -22 && *netman_nl_error() ? netman_nl_error() : *netman_nl_error() ? netman_nl_error() : strerror(-r)); return 1; }
     static int h_ent_list(const nc_cmd *c, int n, char **a)
     {
-    	char names[64][64]; int k = netman_ent_list(names, 64);
+    	char names[64][64]; int k = netman_nl_list(names, 64);
     	(void)c; (void)n; (void)a;
-    	for (int i = 0; i < k; i++) { netman_ent e; if (netman_ent_load(names[i], &e) == 0) printf("%-20s %s\n", names[i], e.kind); else printf("%-20s (invalid: %s)\n", names[i], netman_ent_error()); }
+    	for (int i = 0; i < k; i++) { netman_ent e; if (netman_nl_load(names[i], &e) == 0) printf("%-20s %s\n", names[i], e.kind); else printf("%-20s (invalid: %s)\n", names[i], netman_nl_error()); }
     	return 0;
     }
     static int h_ent_show(const nc_cmd *c, int n, char **a)
     {
     	netman_ent e; (void)c; (void)n;
-    	if (nc_ent_err(netman_ent_load(a[0], &e))) return 1;
-    	return nc_ent_err(netman_ent_show(&e, stdout));
+    	if (nc_ent_err(netman_nl_load(a[0], &e))) return 1;
+    	return nc_ent_err(netman_nl_show(&e, stdout));
     }
     static int h_ent_add(const nc_cmd *c, int n, char **a)
     {
     	netman_ent e; (void)c; (void)n;
     	if (nc_ent_off()) return 3;
-    	if (nc_ent_err(netman_ent_load(a[0], &e))) return 1;
-    	return nc_ent_err(netman_ent_add(&e));
+    	if (nc_ent_err(netman_nl_load(a[0], &e))) return 1;
+    	return nc_ent_err(netman_nl_add(&e));
     }
     static int h_ent_del(const nc_cmd *c, int n, char **a)
     {
     	netman_ent e; (void)c; (void)n;
     	if (nc_ent_off()) return 3;
-    	if (nc_ent_err(netman_ent_load(a[0], &e))) return 1;
-    	return nc_ent_err(netman_ent_del(&e));
+    	if (nc_ent_err(netman_nl_load(a[0], &e))) return 1;
+    	return nc_ent_err(netman_nl_del(&e));
     }
     static int h_ent_save(const nc_cmd *c, int n, char **a)   /* ent save NAME KIND [KEY=VALUE...] */
     {
     	char text[8192] = ""; netman_ent e; (void)c;
     	snprintf(text, sizeof text, "name=%s\nkind=%s\n", a[0], a[1]);
     	for (int i = 2; i < n; i++) { strncat(text, a[i], sizeof text - strlen(text) - 2); strcat(text, "\n"); }
-    	if (nc_ent_err(netman_ent_parse(text, &e))) return 1;
-    	return nc_ent_err(netman_ent_save(&e));
+    	if (nc_ent_err(netman_nl_parse(text, &e))) return 1;
+    	return nc_ent_err(netman_nl_save(&e));
     }
     static int h_ent_apply(const nc_cmd *c, int n, char **a)
     {
     	(void)c; (void)n; (void)a;
     	if (nc_ent_off()) return 3;
-    	return netman_ent_apply_all() ? 1 : 0;
+    	return netman_nl_apply_all() ? 1 : 0;
     }
     static volatile sig_atomic_t nc_ent_stop;
     static void nc_ent_sig(int s) { (void)s; nc_ent_stop = 1; }
     static int h_ent_ecmp(const nc_cmd *c, int n, char **a)   /* foreground failover loop; the daemon can call the same */
     {
-    	netman_ent e; int ms = netman_config_int(&nc_cfg, NC_ENT_PROBE_MS); (void)c; (void)n;
+    	netman_ent e; int ms = netman_config_int(&nc_cfg, NC_NL_PROBE_MS); (void)c; (void)n;
     	if (nc_ent_off()) return 3;
-    	if (nc_ent_err(netman_ent_load(a[0], &e))) return 1;
+    	if (nc_ent_err(netman_nl_load(a[0], &e))) return 1;
     	if (strcmp(e.kind, "ecmp")) { fputs("netman: not an ecmp profile\n", stderr); return 1; }
     	signal(SIGINT, nc_ent_sig); signal(SIGTERM, nc_ent_sig);
-    	return nc_ent_err(netman_ent_ecmp_run(&e, ms, &nc_ent_stop));
+    	return nc_ent_err(netman_nl_ecmp_run(&e, ms, &nc_ent_stop));
     }
     static int h_ent_tether(const nc_cmd *c, int n, char **a)
     {
-    	netman_ent_tether_dev d[16]; int k = netman_ent_tether_detect(d, 16);
+    	netman_nl_tether_dev d[16]; int k = netman_nl_tether_detect(d, 16);
     	(void)c; (void)n; (void)a;
     	if (k <= 0) { puts("no USB or Bluetooth tethering device found"); return k < 0 ? 1 : 0; }
     	for (int i = 0; i < k; i++) printf("%-10s %-4s %s\n", d[i].ifn, d[i].kind, d[i].driver);
@@ -117,7 +117,7 @@ Before any command: apply config to the module tunables once (e.g. in `main` aft
     static int h_wol(const nc_cmd *c, int n, char **a)
     {
     	(void)c; (void)n;
-    	return nc_ent_err(netman_ent_wol_send(a[0], a[1]));
+    	return nc_ent_err(netman_nl_wol_send(a[0], a[1]));
     }
     static int h_lic_status(const nc_cmd *c, int n, char **a)
     {
