@@ -398,7 +398,7 @@ static void test_profiles(void) {
     if (!mkdtemp(d)) { fails++; return; }
     char dir[300]; snprintf(dir, sizeof dir, "%s/conf", d);
     const char *sd = netman_vpn_conf_dir, *srd = netman_vpn_run_dir; FILE *so = netman_vpn_out, *se = netman_vpn_err;
-    netman_vpn_conf_dir = dir; netman_vpn_run_dir = strdup("/nonexistent-run");
+    netman_vpn_conf_dir = dir; netman_vpn_run_dir = "/nonexistent-run";
     FILE *m = open_memstream(&p, &l); netman_vpn_out = m;
     OK(netman_vpn_list() == 0, "list on a missing directory is empty, not an error");
     fclose(m); OK(strstr(p, "NAME") == NULL, "no profile lines"); free(p);

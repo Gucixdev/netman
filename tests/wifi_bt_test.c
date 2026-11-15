@@ -20,7 +20,8 @@ static int fails, checks;
 
 static char *ob, *eb;
 static size_t os_, es_;
-static void cap_begin(void) { ob = eb = NULL; netman_out = open_memstream(&ob, &os_); netman_err = open_memstream(&eb, &es_); }
+static void cap_free(void) { free(ob); free(eb); ob = eb = NULL; }   /* the buffers of the capture before; the last pair at exit */
+static void cap_begin(void) { static int reg; if (!reg) { reg = 1; atexit(cap_free); } cap_free(); netman_out = open_memstream(&ob, &os_); netman_err = open_memstream(&eb, &es_); }
 static void cap_end(void) { fclose(netman_out); fclose(netman_err); netman_out = netman_err = NULL; }
 
 static char tmp[64];
