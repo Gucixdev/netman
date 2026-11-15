@@ -38,6 +38,7 @@ for Wi-Fi and bluez for Bluetooth, plus own netlink/DHCP/DNS, WireGuard/OpenVPN,
 ## use
 
     ./run                       build (cc/gcc/clang via tools/cc, no make: full build ~4 s, unchanged ~0.1 s) and open the TUI; says so if there is no compiler
+    ./install                   build and install for the user: ~/.local/bin/netman and the default profiles (PREFIX=/usr/local with sudo for the system)
     bin/netman                  status of links, wifi, bluetooth and vpn
     bin/netman help [TOPIC]     every command grouped; `help wifi`, `help wifi connect`, `help tui`, `help config`, `help --man`
     bin/netman -tui             the TUI (`--tui` and `-t` also work)

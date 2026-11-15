@@ -47,7 +47,7 @@
 
 #ifndef NETMAN_NO_MAIN
 /* where the shipped default profiles live (share/profiles/NAME.ssh, .mesh, .tun): $NETMAN_SHARE_DIR, else next to the binary (a checkout: bin/netman ->
- * share/), else the installed locations. modkit.h reads the variable. */
+ * share/), else ~/.local/share/netman, else the system locations. modkit.h reads the variable. */
 static void nm_find_share(void)
 {
 	char exe[480], cand[560];
@@ -62,6 +62,10 @@ static void nm_find_share(void)
 			snprintf(cand, sizeof cand, "%s/../share/profiles", exe);
 			if (access(cand, R_OK) == 0) { snprintf(cand, sizeof cand, "%s/../share", exe); setenv("NETMAN_SHARE_DIR", cand, 0); return; }
 		}
+	}
+	if (getenv("HOME") && *getenv("HOME")) {   /* a per-user install (./install without PREFIX) */
+		snprintf(cand, sizeof cand, "%s/.local/share/netman/profiles", getenv("HOME"));
+		if (access(cand, R_OK) == 0) { snprintf(cand, sizeof cand, "%s/.local/share/netman", getenv("HOME")); setenv("NETMAN_SHARE_DIR", cand, 0); return; }
 	}
 	for (int i = 0; fixed[i]; i++) {
 		snprintf(cand, sizeof cand, "%s/profiles", fixed[i]);
