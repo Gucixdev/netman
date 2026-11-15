@@ -13,8 +13,9 @@ for Wi-Fi and bluez for Bluetooth, plus own netlink/DHCP/DNS, WireGuard/OpenVPN,
 
 ## Build and run
 
-    ./run                       build (tools/cc, no make: full build ~4 s) and open the TUI
-    ./install                   build and install for the user: ~/.local/bin/netman and the default profiles (PREFIX=/usr/local with sudo for the system)
+    ./build                     compile what changed (tools/cc, no make; BUILD_FORCE=1 ./build: everything, ~4 s)
+    ./run                       ./build, then open the TUI
+    ./install [-rebuild]        ./build (-rebuild: from scratch) and install for the user: ~/.local/bin/netman and the default profiles (PREFIX=/usr/local with sudo for the system)
     tests/run                   build and run every test (about 5 minutes)
 
 ## Usage

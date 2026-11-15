@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# build - compile netman into bin/netman (parallel and incremental via tools/cc). Incremental: only what changed is compiled; BUILD_FORCE=1 ./build rebuilds everything.
+# No arguments. `run` and `install` call this script (install -rebuild sets BUILD_FORCE=1).
+set -eu
+cd "$(dirname "$(readlink -f "$0")")"
+[ $# -eq 0 ] || { echo "build: takes no arguments (BUILD_FORCE=1 in the environment forces a full rebuild)" >&2; exit 2; }
+cc=${CC:-}
+if [ -z "$cc" ]; then for c in cc gcc clang; do command -v "$c" > /dev/null 2>&1 && { cc=$c; break; }; done; fi
+[ -n "$cc" ] || { echo "build: no C compiler found (looked for cc, gcc, clang)" >&2; exit 1; }
+[ -z "${BUILD_FORCE:-}" ] || { [ ! -d bin/cache ] || find bin/cache -name '*.o' -delete; }
+mkdir -p bin
+CC="$cc" tools/cc -o bin/netman.tmp || { rm -f bin/netman.tmp; echo "build: the build failed (see above)" >&2; exit 1; }
+mv bin/netman.tmp bin/netman
+echo "built: bin/netman"
