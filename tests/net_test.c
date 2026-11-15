@@ -293,6 +293,18 @@ static pid_t start_server(const char *ifn, const char *cidr, const char *pool, u
 	return p;
 }
 
+/* netman__finalize: whatever timers a server sends, T1 <= T2 < lease (a T1 above 7/8 of the lease with no T2 used to skip the unicast renew; lean4/Netman/Dhcp.lean) */
+static void test_finalize(void)
+{
+	static const uint32_t in[][3] = { { 100, 95, 0 }, { 100, 0, 0 }, { 100, 50, 60 }, { 100, 90, 80 }, { 100, 200, 300 }, { 0, 0, 0 }, { 7, 7, 7 }, { 3600, 3000, 0 } };
+	for (unsigned i = 0; i < sizeof in / sizeof *in; i++) {
+		netman_lease l = { 0 };
+		l.ip = htonl(0x0a000002), l.mask = htonl(0xffffff00), l.lease_s = in[i][0], l.t1 = in[i][1], l.t2 = in[i][2];
+		netman__finalize(&l);
+		CHECK(l.lease_s > 0 && l.t1 <= l.t2 && l.t2 < l.lease_s, "finalize(%u,%u,%u) -> lease %u t1 %u t2 %u", in[i][0], in[i][1], in[i][2], l.lease_s, l.t1, l.t2);
+	}
+}
+
 static int selftest(int dnsmasq)
 {
 	char dir[] = "/tmp/nmbn.XXXXXX", rd[300], cd[300], rc[300], log[300];
@@ -313,6 +325,7 @@ static int selftest(int dnsmasq)
 	netman_dns_mode = 1; /* never talk to the host's systemd-resolved */
 	netman_dhcp_rto_ms = 500;
 	printf("namespace ok, state in %s\n", dir);
+	test_finalize();
 	if (getuid() != 0) return 2;
 	sh("ip link set lo up; ip link add d0 type dummy; ip link add v0 type veth peer name v1; ip link add wl0 type veth peer name w1");
 	if (start_holder() < 0 || sh("ip link set v1 netns %d; ip link set w1 netns %d", (int)holder, (int)holder)) {

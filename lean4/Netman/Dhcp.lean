@@ -1,5 +1,5 @@
 /-! DHCPv4 lease timers and the renew / rebind / expiry state machine.
-    Model of `nmbn__finalize` and `nmbn_dhcpc_step` in src/mods/net.h.
+    Model of `netman__finalize` (src/mods/net.h) and `netman_dhcpc_step` (src/mods/roaming.h).
     Finite leases only (lease_s = 0xffffffff never expires and is not modelled). -/
 namespace Netman.Dhcp
 
@@ -19,7 +19,7 @@ theorem fA_spec (l t : Nat) : fA l t = l / 2 ∨ (fA l t = t ∧ 0 < t ∧ t < l
 theorem fB_spec (l a t : Nat) : fB l a t = l * 7 / 8 ∨ (fB l a t = t ∧ a < t ∧ t < l) := by
   unfold fB; split <;> omega
 
-/-- `nmbn__finalize` faithfully: server-offered t1/t2 (0 = absent) are kept when they look sane. -/
+/-- `netman__finalize` faithfully: server-offered t1/t2 (0 = absent) are kept when they look sane. -/
 def finalize (lease t1 t2 : Nat) : Timers :=
   let l := fL lease
   let a := fA l t1
@@ -75,7 +75,7 @@ theorem finalize_defaults_ok (l : Nat) :
 /-- Well-formed timers. -/
 def Wf (t : Timers) : Prop := 0 < t.lease ∧ t.t1 ≤ t.t2 ∧ t.t2 < t.lease
 
-/-! ### What to do at a given lease age (the thresholds in `nmbn_dhcpc_step`) -/
+/-! ### What to do at a given lease age (the thresholds in `netman_dhcpc_step`) -/
 
 inductive Act | wait | renew | rebind | expire
 deriving DecidableEq, Repr

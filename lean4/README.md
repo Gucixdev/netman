@@ -6,32 +6,33 @@ Machine-checked models of the pure logic of `netman`. Core Lean only (no Mathlib
     lake build
 
 **Honesty first: the C is not verified. Only these hand-written models are.** Each model was
-written by reading the C (`../src/mods/net.h`, `../src/mods/vpn/vpn.h`) and mirrors it, but nothing
+written by reading the C (`../src/mods/net.h`, `../src/mods/roaming.h`, `../src/mods/vpn/vpn.h`) and mirrors it, but nothing
 mechanically ties the Lean definitions to the C source. A theorem here says "the model has the property";
 it is evidence about the C only as far as the model is faithful. The "Left out" lists say where it is not.
 
-## Finding: T1 <= T2 can fail in the C (`nmbn__finalize`)
+## Finding: T1 <= T2 could fail in the C (`netman__finalize`) - fixed
 
-If a server sends a valid T1 above 7/8 of the lease and no valid T2 (e.g. lease 100, T1 95, T2 absent),
-the C sets T2 = 87 < T1 = 95 (`finalize_counterexample`). `nmbn_dhcpc_step` then goes straight to a broadcast
-rebind at T1 and never does the unicast renew. T2 < lease and expiry ordering still hold. The proposed fix
-(`finalizeFixed`, clamp T1 to `min(T1, T2)`) is proven to give 0 < lease, T1 <= T2 < lease. Not applied to the C.
+If a server sent a valid T1 above 7/8 of the lease and no valid T2 (e.g. lease 100, T1 95, T2 absent),
+the C set T2 = 87 < T1 = 95 (`finalize_counterexample`). `netman_dhcpc_step` then went straight to a broadcast
+rebind at T1 and never did the unicast renew. The fix (`finalizeFixed`, clamp T1 to `min(T1, T2)`; proven to give
+0 < lease, T1 <= T2 < lease) is in `src/mods/net.h`, and `tests/net_test.c` (`test_finalize`) checks T1 <= T2 < lease
+on that and seven other inputs. The theorems about `finalize` still describe the old behaviour on purpose.
 
-## Netman/Dhcp.lean (model of `nmbn__finalize`, `nmbn_dhcpc_step`)
+## Netman/Dhcp.lean (model of `netman__finalize`, `netman_dhcpc_step`)
 
 | Theorem | Proves | C |
 |---|---|---|
-| `finalize_lease_pos`, `finalize_t1_lt`, `finalize_t2_lt` | lease > 0, T1 < lease, T2 < lease for any server input | `nmbn__finalize` |
-| `finalize_defaults_ok` | with no server timers: T1 = L/2 <= T2 = 7L/8 | `nmbn__finalize` |
-| `finalize_order` | T1 <= T2 holds except exactly when a valid server T1 > 7L/8 and no valid T2 | `nmbn__finalize` |
-| `finalize_counterexample` | the violation is real (100/95/0 gives T1 95, T2 87) | `nmbn__finalize` |
+| `finalize_lease_pos`, `finalize_t1_lt`, `finalize_t2_lt` | lease > 0, T1 < lease, T2 < lease for any server input | `netman__finalize` |
+| `finalize_defaults_ok` | with no server timers: T1 = L/2 <= T2 = 7L/8 | `netman__finalize` |
+| `finalize_order` | T1 <= T2 holds except exactly when a valid server T1 > 7L/8 and no valid T2 | `netman__finalize` |
+| `finalize_counterexample` | the violation is real (100/95/0 gives T1 95, T2 87) | `netman__finalize` |
 | `finalizeFixed_ok` | the fixed version gives T1 <= T2 < lease | (proposed) |
-| `act_monotone`, `renew_before_rebind`, `rebind_before_expire`, `renew_before_expire`, `phases` | the action by lease age only moves wait, renew, rebind, expire; with T1 < T2 < L all phases occur | thresholds in `nmbn_dhcpc_step` |
-| `bound_needs_ack` | INIT goes to BOUND only on an ACK from connect | `nmbn_dhcpc_step` st==0 branch |
-| `nak_returns_init` | NAK on renew/rebind: INIT and address unapplied | `nmbn_dhcpc_step`, `NMBN_E_NAK` branch |
-| `expiry_drops` | at age >= lease: INIT and address dropped | `nmbn_dhcpc_step`, expiry branch |
-| `bound_not_expired` | after any step, a BOUND lease satisfies now < got + lease (clock monotone) | `nmbn_dhcpc_step` |
-| `step_inv` | invariant "address held iff BOUND, BOUND timers well-formed" is preserved | `nmbn_dhcpc_step` |
+| `act_monotone`, `renew_before_rebind`, `rebind_before_expire`, `renew_before_expire`, `phases` | the action by lease age only moves wait, renew, rebind, expire; with T1 < T2 < L all phases occur | thresholds in `netman_dhcpc_step` |
+| `bound_needs_ack` | INIT goes to BOUND only on an ACK from connect | `netman_dhcpc_step` st==0 branch |
+| `nak_returns_init` | NAK on renew/rebind: INIT and address unapplied | `netman_dhcpc_step`, `NMBN_E_NAK` branch |
+| `expiry_drops` | at age >= lease: INIT and address dropped | `netman_dhcpc_step`, expiry branch |
+| `bound_not_expired` | after any step, a BOUND lease satisfies now < got + lease (clock monotone) | `netman_dhcpc_step` |
+| `step_inv` | invariant "address held iff BOUND, BOUND timers well-formed" is preserved | `netman_dhcpc_step` |
 | `retry_in_future` | a failed renew schedules its retry strictly later (no busy loop) | `next_try = now + max(1, rest/2)` |
 
 Left out: infinite leases (`0xffffffff`); sockets, packet parsing, options; `nmbn_lease_apply` failing after
