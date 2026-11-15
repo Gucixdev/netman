@@ -53,7 +53,7 @@ static inline int nm_priv_escalate(int argc, char **argv)
 	av[k++] = "--priv-done";   /* loop guard: the re-run must not ask again */
 	for (int i = 1; i < argc; i++) av[k++] = argv[i];
 	av[k] = NULL;
-	fputs("netman: needs root for this (wpa_supplicant socket / netlink); asking sudo\n", stderr);
+	fprintf(stderr, "netman: `%s` needs root; asking sudo (config privileges.sudo = never stops this)\n", argc > 1 ? argv[1] : "netman");
 	execvp(sudo, av);
 	fprintf(stderr, "netman: cannot run %s (%s); run netman as root, or see the readme for the group route\n", sudo, strerror(errno));
 	return -1;
