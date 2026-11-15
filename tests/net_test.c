@@ -245,6 +245,28 @@ static long wait_addr(const char *ifn, const char *pre, int want, int max_ms)
 	}
 	return -1;
 }
+static void default_routes(char *out, size_t sz)
+{
+	FILE *pp = popen("ip -4 route show default", "r");
+	size_t n = pp ? fread(out, 1, sz - 1, pp) : 0;
+	if (pp) pclose(pp);
+	out[n] = 0;
+}
+static int wifi_settled(const char *rc, char *out, size_t sz, int max_ms)
+{ /* The failing 'ghost' profile is retried after 1, 2, 4 s of backoff, and every retry reconnects wifi on purpose (netman__penalize),
+   * so a single sample can land mid-reconnect on a slow or busy machine. Wait for the settled state: wifi bound, ghost's address gone,
+   * both default routes and both resolvers present. */
+	struct timespec t0;
+	clock_gettime(CLOCK_MONOTONIC, &t0);
+	for (;;) {
+		default_routes(out, sz);
+		if (has_addr("wl0", "10.88.0.1") && !has_addr("wl0", "10.88.0.77") && strstr(out, "dev v0 metric 100") && strstr(out, "dev wl0 metric 600") &&
+		    slurp_has(rc, "10.77.0.1") && slurp_has(rc, "10.88.0.1"))
+			return 1;
+		if (since_ms(&t0) >= max_ms) return 0;
+		usleep(20000);
+	}
+}
 static void http_serve(const char *ip)
 { /* tiny probe target: 204 normally, 302 "portal" after SIGUSR1 */
 	struct sockaddr_in a = {.sin_family = AF_INET, .sin_port = htons(80)};
@@ -568,12 +590,8 @@ static int selftest(int dnsmasq)
 		t_wifi = wait_addr("wl0", "10.88.0.1", 1, 12000);
 		CHECK(t_wifi >= 0, "wifi up despite the failing higher-priority profile");
 		printf("  time: wifi carrier -> address, with a broken top-priority profile tried first: %ld ms\n", t_wifi);
+		wifi_settled(rc, out, sizeof out, 10000);
 		CHECK(!has_addr("wl0", "10.88.0.77"), "ghost's half-applied address was cleaned");
-
-		pp = popen("ip -4 route show default", "r");
-		n = pp ? fread(out, 1, sizeof out - 1, pp) : 0;
-		if (pp) pclose(pp);
-		out[n > 0 ? n : 0] = 0;
 		CHECK(strstr(out, "dev v0 metric 100") && strstr(out, "dev wl0 metric 600"), "two default routes, ethernet preferred by metric:\n%s", out);
 		CHECK(slurp_has(rc, "10.77.0.1") && slurp_has(rc, "10.88.0.1"), "dns from both networks present");
 
@@ -609,8 +627,10 @@ static int selftest(int dnsmasq)
 		CHECK(t_nak >= 0 && log_count(log, "DISCOVER") == d_before + 1, "NAK -> full DISCOVER fallback");
 		printf("  time: ethernet replug, cached lease NAKed, full DHCP fallback: %ld ms\n", t_nak);
 
-		/* priority switch: wifi alone is up when ethernet drops; nothing else should be touched */
-		CHECK(has_addr("wl0", "10.88.0.1"), "wifi stayed connected through all ethernet changes");
+		/* priority switch: wifi alone is up when ethernet drops; nothing else should be touched.
+		 * The failing 'ghost' profile is retried after 1, 2 and 4 s of backoff and each retry reconnects wifi on purpose
+		 * (see netman__penalize), so wifi may be mid-reconnect here on a slow or busy machine: wait for it, don't sample once. */
+		CHECK(wait_addr("wl0", "10.88.0.1", 1, 8000) >= 0, "wifi connected after all ethernet changes");
 
 		/* connectivity probe (direct, via wl0) */
 		netman_probe_ip = "10.88.0.1";
