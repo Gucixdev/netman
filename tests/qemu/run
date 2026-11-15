@@ -35,10 +35,10 @@ build net_test net_test.c
 build vpn_test vpn_test.c ../src/mods/wireguard.c ../src/mods/vpn/vpnmod.c ../src/mods/vpn/openvpn.c ../src/mods/ipsec.c ../src/mods/l2tp.c ../src/mods/openconnect.c ../src/mods/sstp.c ../src/mods/vpn/vpnimport.c ../src/mods/tor.c
 build fw_test fw_test.c -Wall -Wextra
 build priv_test priv_test.c -I../src
-cd "$src"
+cd "$src" || exit 1
 build netman src/netman.c -Wall -Isrc -Isrc/mods -Isrc/mods/vpn src/config.c src/mods/netlink.c src/mods/nl_bond.c src/mods/nl_bridge.c src/mods/nl_vlan.c src/mods/nl_route.c src/mods/nl_link.c src/mods/nl_dot1x.c src/mods/wol.c src/mods/tether.c src/mods/licence.c src/mods/wireguard.c src/mods/vpn/vpnmod.c src/mods/vpn/openvpn.c src/mods/ipsec.c src/mods/l2tp.c src/mods/openconnect.c src/mods/sstp.c src/mods/vpn/vpnimport.c src/mods/tor.c src/mods/ssh.c src/mods/mesh.c src/mods/bonding.c src/mods/tunnel.c
 if [ -f "$repo/qlogin/src/qlogind.c" ] && [ -f "$repo/qlogin/tests/login1_test.c" ]; then
-	cd "$repo/qlogin"; build qlogind src/qlogind.c -Isrc/mods; build login1_test tests/login1_test.c
+	cd "$repo/qlogin" || exit 1; build qlogind src/qlogind.c -Isrc/mods; build login1_test tests/login1_test.c
 fi
 
 # ---- the VM userland: host binaries + ldd-copied libs ----
@@ -63,6 +63,7 @@ cp "$here/init" "$ROOT/init"; chmod +x "$ROOT/init"
 mkdir -p "$ROOT/qt/stages"; cp "$here/stages/"* "$ROOT/qt/stages/"; cp "$here/guestlib.sh" "$ROOT/qt/lib.sh"
 echo "${QT_ONLY:-.}" > "$ROOT/qt/only"
 [ -n "${QT_STAGES_DIR:-}" ] && cp "$QT_STAGES_DIR"/* "$ROOT/qt/stages/"
+# shellcheck disable=SC1090  # QT_PREP is a caller-supplied file
 [ -n "${QT_PREP:-}" ] && . "$QT_PREP"
 (cd "$ROOT" && find . | cpio -o -H newc --quiet 2>/dev/null | zstd -q -3 -o "$T/initramfs.zst") || die "initramfs build failed"
 echo "qemu-test: kernel $KERNEL, initramfs $(du -h "$T/initramfs.zst" | cut -f1), timeout ${TIMEOUT}s, log dir $T" >&2

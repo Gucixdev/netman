@@ -12,9 +12,9 @@ pass=0 fail=0
 ok() { pass=$((pass + 1)); }
 no() { fail=$((fail + 1)); printf 'FAIL: %s\n' "$1"; [ -n "${2:-}" ] && printf '%s\n' "$2" | sed 's/^/      | /'; }
 snap() { $T capture-pane -p -t t; }
-has() { local s i; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do s=$(snap); grep -qF -- "$1" <<<"$s" && { ok; return; }; sleep 0.25; done; no "$2 (wanted '$1')" "$s"; }
-hasnt() { local s i; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do s=$(snap); grep -qF -- "$1" <<<"$s" || { ok; return; }; sleep 0.25; done; no "$2 (did not want '$1')" "$s"; }
-log_has() { local i; for i in 1 2 3 4 5 6 7 8 9 10 11 12; do grep -qF -- "$1" "$work/log/calls.log" 2>/dev/null && { ok; return; }; sleep 0.25; done; no "$2 (fake never saw '$1')" "$(cat "$work/log/calls.log" 2>/dev/null)"; }
+has() { local s; for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do s=$(snap); grep -qF -- "$1" <<<"$s" && { ok; return; }; sleep 0.25; done; no "$2 (wanted '$1')" "$s"; }
+hasnt() { local s; for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do s=$(snap); grep -qF -- "$1" <<<"$s" || { ok; return; }; sleep 0.25; done; no "$2 (did not want '$1')" "$s"; }
+log_has() { for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do grep -qF -- "$1" "$work/log/calls.log" 2>/dev/null && { ok; return; }; sleep 0.25; done; no "$2 (fake never saw '$1')" "$(cat "$work/log/calls.log" 2>/dev/null)"; }
 keys() { $T send-keys -t t "$@"; sleep 0.5; }
 start() { # cols rows
 	$T kill-server 2>/dev/null; rm -rf "$work/log"

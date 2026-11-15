@@ -9,6 +9,7 @@ N="$work/netman"; pass=0 fail=0
 ok() { pass=$((pass + 1)); }
 no() { fail=$((fail + 1)); printf 'FAIL: %s\n' "$1"; }
 export NETMAN_CONFIG="$work/c.conf"
+# shellcheck disable=SC2046  # names are NETMAN_[A-Z_]*, no spaces
 unset $(env | sed -n 's/^\(NETMAN_[A-Z_]*\)=.*/\1/p' | grep -v '^NETMAN_CONFIG$')
 export NETMAN_CONFIG="$work/c.conf"
 printf '# my notes\n[privileges]\nsudo = never   # keep\n\n[wifi]\nbackend = iwd\n' >"$work/c.conf"
@@ -28,7 +29,7 @@ grep -q '# my notes' "$work/c.conf" && grep -q 'sudo = never   # keep' "$work/c.
 cp "$work/c.conf" "$work/before"
 chk 1 "bad value refused" "$N" settings set wifi.backend nonsense; cmp -s "$work/before" "$work/c.conf" && ok || no "bad value left the file unchanged"
 chk 1 "bad int refused" "$N" settings set roaming.score_threshold 101; cmp -s "$work/before" "$work/c.conf" && ok || no "bad int left the file unchanged"
-[ "$(ls -A "$work" | grep -c 'c.conf.')" = 0 ] && ok || no "no temp files left: $(ls -A "$work")"
+[ -z "$(find "$work" -maxdepth 1 -name 'c.conf.*')" ] && ok || no "no temp files left: $(ls -A "$work")"
 chk 0 toggle "$N" settings toggle ssh.enabled; contains "ssh.enabled" "toggle message"
 chk 0 "toggle value" "$N" settings get ssh.enabled; [ "$LAST" = yes ] && ok || no "toggle flipped ssh.enabled to yes ($LAST)"
 chk 1 "toggle non-bool" "$N" settings toggle wifi.backend

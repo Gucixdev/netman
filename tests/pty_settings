@@ -20,9 +20,9 @@ pass=0 fail=0
 ok() { pass=$((pass + 1)); }
 no() { fail=$((fail + 1)); printf 'FAIL: %s\n' "$1"; [ -n "${2:-}" ] && printf '%s\n' "$2" | sed 's/^/      | /'; }
 snap() { $T capture-pane -p -t t; }
-has() { local s i; for i in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" && { ok; return; }; sleep 0.25; done; no "$2 (wanted '$1')" "$s"; }
-hasnt() { local s i; for i in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" || { ok; return; }; sleep 0.25; done; no "$2 (did not want '$1')" "$s"; }
-infile() { for i in $(seq 1 12); do grep -qE -- "$1" "$conf" && { ok; return; }; sleep 0.25; done; no "$2 (wanted /$1/ in the file)" "$(cat "$conf")"; }
+has() { local s; for _ in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" && { ok; return; }; sleep 0.25; done; no "$2 (wanted '$1')" "$s"; }
+hasnt() { local s; for _ in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" || { ok; return; }; sleep 0.25; done; no "$2 (did not want '$1')" "$s"; }
+infile() { for _ in $(seq 1 12); do grep -qE -- "$1" "$conf" && { ok; return; }; sleep 0.25; done; no "$2 (wanted /$1/ in the file)" "$(cat "$conf")"; }
 notinfile() { sleep 0.5; grep -qE -- "$1" "$conf" && no "$2 (did not want /$1/ in the file)" "$(cat "$conf")" || ok; }
 keys() { $T send-keys -t t "$@"; sleep 0.5; }
 lit() { $T send-keys -l -t t "$1"; sleep 0.5; }
@@ -39,13 +39,13 @@ keys /; lit "ssh.enabled"; keys Enter; has "[ ] ssh.enabled" "found by search, u
 keys Space; has "[x] ssh.enabled" "toggled on in the panel"; infile 'enabled *= *yes' "written to the file"; infile 'keep this comment' "comment kept"
 has "SSH" "the SSH tab appears in the tab bar once ssh is enabled"
 # the SSH tab lists its keys; select ssh_bin through the search
-for i in 1 2 3 4 5 6 7 8; do snap | grep -q "known_hosts" && break; keys l; done
+for _ in 1 2 3 4 5 6 7 8; do snap | grep -q "known_hosts" && break; keys l; done
 has "known_hosts" "SSH tab lists its keys"
 keys /; lit "ssh.ssh_bin"; keys Enter
 # inline edit with validation
 keys e; lit "relative/path"; has "absolute program path" "validation message while typing"
 keys Enter; has "absolute program path" "an invalid value is refused"; notinfile 'relative/path' "nothing written for an invalid value"
-for i in $(seq 1 16); do keys BSpace; done; lit "/usr/bin/ssh"; has "valid" "valid message"; keys Enter; infile 'ssh_bin *= */usr/bin/ssh' "valid value saved"
+for _ in $(seq 1 16); do keys BSpace; done; lit "/usr/bin/ssh"; has "valid" "valid message"; keys Enter; infile 'ssh_bin *= */usr/bin/ssh' "valid value saved"
 keys d; infile '^\[ssh\]' "section stays"; notinfile 'ssh_bin' "d resets (line removed)"
 # enum cycling + live theme + restart note
 keys Escape; keys /; lit "tui.theme"; keys Enter; keys Space; infile 'theme *= *mono' "enum cycled and saved"; has "mono" "enum shown"

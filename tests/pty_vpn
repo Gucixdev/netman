@@ -25,10 +25,10 @@ pass=0 fail=0
 ok() { pass=$((pass + 1)); }
 no() { fail=$((fail + 1)); printf 'FAIL: %s\n' "$1"; [ -n "${2:-}" ] && printf '%s\n' "$2" | sed 's/^/      | /'; }
 snap() { $T capture-pane -p -t t; }
-has() { local s i; for i in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" && { ok; return; }; sleep 0.25; done; no "$2 (wanted '$1')" "$s"; }
-hasnt() { local s i; for i in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" || { ok; return; }; sleep 0.25; done; no "$2 (did not want '$1')" "$s"; }
+has() { local s; for _ in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" && { ok; return; }; sleep 0.25; done; no "$2 (wanted '$1')" "$s"; }
+hasnt() { local s; for _ in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" || { ok; return; }; sleep 0.25; done; no "$2 (did not want '$1')" "$s"; }
 iface_is() { # name present|absent
-	local i; for i in $(seq 1 16); do
+	for _ in $(seq 1 16); do
 		if ip link show "$1" >/dev/null 2>&1; then [ "$2" = present ] && { ok; return; }; else [ "$2" = absent ] && { ok; return; }; fi
 		sleep 0.25
 	done; no "interface $1 should be $2" "$(ip -br link)"

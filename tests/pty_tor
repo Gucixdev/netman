@@ -21,8 +21,8 @@ pass=0 fail=0
 ok() { pass=$((pass + 1)); }
 no() { fail=$((fail + 1)); printf 'FAIL: %s\n' "$1"; [ -n "${2:-}" ] && printf '%s\n' "$2" | sed 's/^/      | /'; }
 snap() { $T capture-pane -p -t t; }
-has() { local s i; for i in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" && { ok; return; }; sleep 0.25; done; no "$2 (wanted '$1')" "$s"; }
-hasnt() { local s i; for i in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" || { ok; return; }; sleep 0.25; done; no "$2 (did not want '$1')" "$s"; }
+has() { local s; for _ in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" && { ok; return; }; sleep 0.25; done; no "$2 (wanted '$1')" "$s"; }
+hasnt() { local s; for _ in $(seq 1 16); do s=$(snap); grep -qF -- "$1" <<<"$s" || { ok; return; }; sleep 0.25; done; no "$2 (did not want '$1')" "$s"; }
 keys() { $T send-keys -t t "$@"; sleep 0.6; }
 start() { $T kill-server 2>/dev/null; $T -u new-session -d -s t -x "$1" -y "$2" "NETMAN_VPN_CONF_DIR=$work/vpn NETMAN_CONFIG=$3 LANG=C.UTF-8 TERM=xterm-256color $work/nm -tui; echo EXIT:\$?; sleep 30"; sleep 2; }
 
