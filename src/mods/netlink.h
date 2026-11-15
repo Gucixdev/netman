@@ -1,4 +1,4 @@
-/* netlink.h - API of the "enterprise level" networking mods: netlink.c (bonding/team, bridge, vlan/QinQ,
+/* netlink.h - API of the link modules (bridge, vlan, route, link, dot1x, tether): netlink.c (bonding/team, bridge, vlan/QinQ,
  * macvlan/ipvlan, veth, dummy, routes/rules/tables, ECMP failover, link settings, IPv6, Wake-on-LAN, wired 802.1X,
  * spec profiles) and tether.c (USB/BT tethering, share-out). Real .c files: link them, no implementation macro.
  *
@@ -92,6 +92,8 @@ int netman_nl_check(const netman_ent *e);
 int netman_nl_load(const char *name, netman_ent *e);
 int netman_nl_save(const netman_ent *e);
 int netman_nl_list(char names[][64], int max);
+/* set by the caller: nonzero when a profile of that kind may be applied (its module is enabled); NULL = every kind */
+extern int (*netman_nl_kind_ok)(const char *kind);
 int netman_nl_apply_all(void); /* load every NAME.ent, apply in dependency order; returns number of failures */
 int netman_nl_table_id(const char *name_or_number); /* routing table by number or /etc/iproute2/rt_tables name; -1 unknown */
 

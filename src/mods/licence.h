@@ -1,4 +1,4 @@
-/* licence.h - enterprise licence/key store: licence files with expiry under /etc/netman/licences, `netman licence
+/* licence.h - licence/key store: licence files with expiry under /etc/netman/licences, `netman licence
  * status|renew`, renewal through a pluggable hook command, and WireGuard/VPN key rotation. Real .c: licence.c.
  *
  * Licence file NAME.lic (key = value):  name, holder, kind, expires = YYYY-MM-DD | never, key (opaque token).

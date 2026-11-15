@@ -62,8 +62,11 @@ static int nc_vpn_has_profiles(void)
 
 static int nc_enabled(const char *module)
 {
-	static const struct { const char *m; int k; } t[] = { { "wifi", NC_WIFI_ENABLED }, { "bluetooth", NC_BT_ENABLED }, { "net", NC_NET_ENABLED }, { "roaming", NC_ROAM_ENABLED }, { "vpn", NC_VPN_ENABLED }, { "firewall", NC_FW_ENABLED }, { "metrics", NC_METRICS_ENABLED }, { "enterprise", NC_NL_ENABLED }, { "licence", NC_LICENCE_ENABLED }, { "tether", NC_TETHER_ENABLED }, { "wireguard", NC_WG_ENABLED }, { "nmapi", NC_NMAPI_ENABLED }, { "tor", NC_TOR_ENABLED }, { "ssh", NC_SSH_ENABLED }, { "mesh", NC_MESH_ENABLED }, { "bonding", NC_BOND_ENABLED }, { "tunnel", NC_TUN_ENABLED } };
+	static const struct { const char *m; int k; } t[] = { { "wifi", NC_WIFI_ENABLED }, { "bluetooth", NC_BT_ENABLED }, { "net", NC_NET_ENABLED }, { "roaming", NC_ROAM_ENABLED }, { "vpn", NC_VPN_ENABLED }, { "firewall", NC_FW_ENABLED }, { "metrics", NC_METRICS_ENABLED }, { "bridge", NC_BRIDGE_ENABLED }, { "vlan", NC_VLAN_ENABLED }, { "route", NC_ROUTE_ENABLED }, { "link", NC_LINK_ENABLED }, { "dot1x", NC_DOT1X_ENABLED }, { "licence", NC_LICENCE_ENABLED }, { "tether", NC_TETHER_ENABLED }, { "wireguard", NC_WG_ENABLED }, { "nmapi", NC_NMAPI_ENABLED }, { "tor", NC_TOR_ENABLED }, { "ssh", NC_SSH_ENABLED }, { "mesh", NC_MESH_ENABLED }, { "bonding", NC_BOND_ENABLED }, { "tunnel", NC_TUN_ENABLED } };
 	if (!module) return 1;
+	if (!strcmp(module, "links"))   /* pseudo module: the Links tab exists while any of the modules it shows is on */
+		return netman_config_bool(&nc_cfg, NC_BRIDGE_ENABLED) || netman_config_bool(&nc_cfg, NC_VLAN_ENABLED) || netman_config_bool(&nc_cfg, NC_ROUTE_ENABLED) ||
+		       netman_config_bool(&nc_cfg, NC_LINK_ENABLED) || netman_config_bool(&nc_cfg, NC_DOT1X_ENABLED) || netman_config_bool(&nc_cfg, NC_TETHER_ENABLED);
 	for (unsigned i = 0; i < sizeof t / sizeof *t; i++) if (!strcmp(module, t[i].m)) return netman_config_bool(&nc_cfg, t[i].k);
 	return 1;
 }
@@ -442,49 +445,87 @@ static int h_metrics_watch(const nc_cmd *c, int n, char **a)   /* [COUNT]: none 
 	return 0;
 }
 
-/* ---- enterprise ---------------------------------------------------------------------------------------------- */
-static int nc_ent_off(void) { if (netman_config_bool(&nc_cfg, NC_NL_ENABLED)) return 0; fputs("netman: enterprise changes are disabled in config (netman config set enterprise.enabled yes)\n", stderr); return 3; }
+/* ---- link modules: bridge, vlan, route, link, dot1x, tether (+ bonding) share one profile store (NAME.ent, src/mods/netlink.c) ---- */
+/* the module (config section) that owns a profile kind */
+static const char *nc_kind_module(const char *k)
+{
+	static const struct { const char *kind, *mod; } t[] = {
+		{ "bond", "bonding" }, { "team", "bonding" }, { "bridge", "bridge" },
+		{ "vlan", "vlan" }, { "macvlan", "vlan" }, { "ipvlan", "vlan" }, { "veth", "vlan" }, { "dummy", "vlan" },
+		{ "route", "route" }, { "rule", "route" }, { "ecmp", "route" }, { "link", "link" }, { "ipv6", "link" }, { "wol", "link" },
+		{ "dot1x", "dot1x" }, { "tether", "tether" } };
+	for (unsigned i = 0; i < sizeof t / sizeof *t; i++) if (!strcmp(k, t[i].kind)) return t[i].mod;
+	return NULL;
+}
+static int nc_kind_ok(const char *kind) { const char *m = nc_kind_module(kind); return !m || nc_enabled(m); }
+static int nc_mod_off(const char *m)
+{
+	if (!m || nc_enabled(m)) return 0;
+	fprintf(stderr, "netman: %s is disabled in config (netman config toggle %s.enabled)\n", m, m);
+	return 3;
+}
 static int nc_ent_err(int r) { if (r >= 0) return 0; fprintf(stderr, "netman: %s\n", r == -22 && *netman_nl_error() ? netman_nl_error() : *netman_nl_error() ? netman_nl_error() : strerror(-r)); return 1; }
+/* a row of the module group MOD (NULL = the old all-in-one `ent` group, which accepts every kind) must match the profile's kind */
+static int nc_mod_match(const nc_cmd *c, const netman_ent *e)
+{
+	const char *m = nc_kind_module(e->kind);
+	if (!strncmp(c->name, "ent ", 4)) return 0;
+	if (m && !strcmp(m, c->module)) return 0;
+	fprintf(stderr, "netman: %s is a %s profile (netman %s ...)\n", e->name, e->kind, m ? m : "ent");
+	return 1;
+}
 static int h_ent_list(const nc_cmd *c, int n, char **a)
 {
 	char names[64][64]; int k = netman_nl_list(names, 64);
-	(void)c; (void)n; (void)a;
-	for (int i = 0; i < k; i++) { netman_ent e; if (netman_nl_load(names[i], &e) == 0) printf("%-20s %s\n", names[i], e.kind); else printf("%-20s (invalid: %s)\n", names[i], netman_nl_error()); }
+	(void)n; (void)a;
+	for (int i = 0; i < k; i++) {
+		netman_ent e;
+		if (netman_nl_load(names[i], &e) == 0) { if (!strncmp(c->name, "ent ", 4) || !strcmp(nc_kind_module(e.kind) ? nc_kind_module(e.kind) : "", c->module)) printf("%-20s %s\n", names[i], e.kind); }
+		else if (!strncmp(c->name, "ent ", 4)) printf("%-20s (invalid: %s)\n", names[i], netman_nl_error());
+	}
 	return 0;
 }
 static int h_ent_show(const nc_cmd *c, int n, char **a)
 {
-	netman_ent e; (void)c; (void)n;
+	netman_ent e; (void)n;
 	if (nc_ent_err(netman_nl_load(a[0], &e))) return 1;
+	if (nc_mod_match(c, &e)) return 1;
 	return nc_ent_err(netman_nl_show(&e, stdout));
 }
 static int h_ent_add(const nc_cmd *c, int n, char **a)
 {
-	netman_ent e; (void)c; (void)n;
-	if (nc_ent_off()) return 3;
+	netman_ent e; (void)n;
 	if (nc_ent_err(netman_nl_load(a[0], &e))) return 1;
-	if (!strcmp(e.kind, "tether") && !nc_enabled("tether")) { fputs("tether disabled in config (netman config toggle tether.enabled)\n", stderr); return 3; }
+	if (nc_mod_match(c, &e)) return 1;
+	if (nc_mod_off(nc_kind_module(e.kind))) return 3;
 	return nc_ent_err(netman_nl_add(&e));
 }
 static int h_ent_del(const nc_cmd *c, int n, char **a)
 {
-	netman_ent e; (void)c; (void)n;
-	if (nc_ent_off()) return 3;
+	netman_ent e; (void)n;
 	if (nc_ent_err(netman_nl_load(a[0], &e))) return 1;
+	if (nc_mod_match(c, &e)) return 1;
+	if (nc_mod_off(nc_kind_module(e.kind))) return 3;
 	return nc_ent_err(netman_nl_del(&e));
 }
-static int h_ent_save(const nc_cmd *c, int n, char **a)   /* ent save NAME KIND [KEY=VALUE...] */
+/* ent save NAME KIND [KEY=VALUE...]   |   MODULE save NAME [KIND] [KEY=VALUE...]  (KIND defaults to the module's own kind) */
+static int h_ent_save(const nc_cmd *c, int n, char **a)
 {
-	char text[8192] = ""; netman_ent e; (void)c;
-	snprintf(text, sizeof text, "name=%s\nkind=%s\n", a[0], a[1]);
-	for (int i = 2; i < n; i++) { strncat(text, a[i], sizeof text - strlen(text) - 2); strcat(text, "\n"); }
+	char text[8192] = ""; netman_ent e; const char *kind; int first = 2;
+	if (!strncmp(c->name, "ent ", 4) && n < 2) return nc_usage(c);
+	if (!strncmp(c->name, "ent ", 4)) kind = a[1];
+	else if (n > 1 && !strchr(a[1], '=')) kind = a[1];
+	else { kind = c->module; first = 1; }
+	if (strncmp(c->name, "ent ", 4) && nc_kind_module(kind) && strcmp(nc_kind_module(kind), c->module)) { fprintf(stderr, "netman: kind %s belongs to `netman %s`\n", kind, nc_kind_module(kind)); return 2; }
+	snprintf(text, sizeof text, "name=%s\nkind=%s\n", a[0], kind);
+	for (int i = first; i < n; i++) { strncat(text, a[i], sizeof text - strlen(text) - 2); strcat(text, "\n"); }
 	if (nc_ent_err(netman_nl_parse(text, &e))) return 1;
 	return nc_ent_err(netman_nl_save(&e));
 }
 static int h_ent_apply(const nc_cmd *c, int n, char **a)
 {
 	(void)c; (void)n; (void)a;
-	if (nc_ent_off()) return 3;
+	netman_nl_kind_ok = nc_kind_ok;   /* profiles of a module that is switched off are skipped */
 	return netman_nl_apply_all() ? 1 : 0;
 }
 static volatile sig_atomic_t nc_ent_stop;
@@ -492,7 +533,7 @@ static void nc_ent_sig(int s) { (void)s; nc_ent_stop = 1; }
 static int h_ent_ecmp(const nc_cmd *c, int n, char **a)   /* foreground failover loop; the daemon can call the same */
 {
 	netman_ent e; int ms = netman_config_int(&nc_cfg, NC_NL_PROBE_MS); (void)c; (void)n;
-	if (nc_ent_off()) return 3;
+	if (nc_mod_off("route")) return 3;
 	if (nc_ent_err(netman_nl_load(a[0], &e))) return 1;
 	if (strcmp(e.kind, "ecmp")) { fputs("netman: not an ecmp profile\n", stderr); return 1; }
 	signal(SIGINT, nc_ent_sig); signal(SIGTERM, nc_ent_sig);
@@ -853,18 +894,49 @@ static const nc_cmd nc_table[] = {
 	{ "metrics show", "", h_metrics_show, R_NO, "metrics", "per-interface rates and totals", "" },
 	{ "metrics record", "", h_metrics_record, R_YES, "metrics", "append one sample per interface to metrics.dir", "" },
 	{ "metrics watch", "[COUNT]", h_metrics_watch, R_NO, "metrics", "print rates every metrics.interval_s seconds", "" },
-	{ "ent list", "", h_ent_list, R_NO, "enterprise", "saved enterprise profiles (bond, bridge, vlan, route, ecmp, tether ...)", "" },
-	{ "ent show", "NAME", h_ent_show, R_YES, "enterprise", "live state of a profile's device", "" },
-	{ "ent save", "NAME KIND [KEY=VALUE...]", h_ent_save, R_YES, "enterprise", "create or replace a profile", "KIND: bond team bridge vlan macvlan ipvlan veth dummy tether dot1x route rule ecmp link ipv6 wol. Keys are the profile keys, e.g. `ent save bond0 bond mode=802.3ad member=eth0 member=eth1 miimon=100`. Stored as NAME.ent in the netman config directory." },
-	{ "ent add", "NAME", h_ent_add, R_YES, "enterprise", "create the device / install the routes of a profile", "Needs enterprise.enabled = yes. Everything goes through rtnetlink, ethtool ioctls and /proc/sys; only nft, dnsmasq and wpa_supplicant are ever exec'd, and only for tether and 802.1X." },
-	{ "ent del", "NAME", h_ent_del, R_YES, "enterprise", "tear a profile's device / routes down", "" },
-	{ "ent apply", "", h_ent_apply, R_YES, "enterprise", "apply every saved profile in dependency order", "dummy/veth, bond/team, bridge, vlan/macvlan/ipvlan, link/ipv6/wol, route/rule/ecmp, tether/dot1x." },
-	{ "ent ecmp", "NAME", h_ent_ecmp, R_YES, "enterprise", "run the multi-uplink failover loop for an ecmp profile", "Probes each uplink with an ICMP echo bound to its interface; fail_after / ok_after consecutive results flip it, the default route (metric 50) follows. Ctrl-C stops." },
-	{ "ent tether", "", h_ent_tether, R_NO, "tether", "detected USB (RNDIS/NCM/ECM/ipheth) and Bluetooth PAN tethering devices", "" },
-	{ "wol", "IFACE MAC", h_wol, R_YES, "enterprise", "send a Wake-on-LAN magic packet out of IFACE", "UDP broadcast to port 9. Setting the NIC itself to wake on LAN is `ent save NAME wol wol=g`." },
-	{ "licence status", "", h_lic_status, R_NO, "licence", "licences and their expiry (exit 1 when any expires soon or has)", "Files NAME.lic in enterprise.licence_dir. Warns inside enterprise.licence_warn_days." },
-	{ "licence renew", "NAME", h_lic_renew, R_YES, "licence", "renew a licence through enterprise.renew_hook", "The hook gets NAME CURRENT_PATH NEW_PATH and writes the new licence; netman checks it names the same licence and expires later, then swaps atomically and keeps NAME.lic.prev. netman itself never contacts a network." },
-	{ "key rotate", "NAME", h_key_rotate, R_YES, "licence", "new WireGuard key for NAME; prints the new public key", "Writes NAME.key mode 0600, keeps the old one as NAME.key.prev, then runs enterprise.key_apply_hook (NAME PUBKEY); if the hook fails the old key is restored. No `wg` binary needed." },
+	{ "bridge list", "", h_ent_list, R_NO, "bridge", "saved bridge profiles", "" },
+	{ "bridge show", "NAME", h_ent_show, R_YES, "bridge", "live state of a bridge profile's device", "" },
+	{ "bridge save", "NAME [KEY=VALUE...]", h_ent_save, R_YES, "bridge", "create or replace a bridge profile", "Keys are the profile keys, e.g. `bridge save br0 member=eth0 member=eth1 stp=yes vlan_filtering=yes`. Stored as NAME.ent in the netman config directory." },
+	{ "bridge add", "NAME", h_ent_add, R_YES, "bridge", "create the bridge and enslave its members", "" },
+	{ "bridge del", "NAME", h_ent_del, R_YES, "bridge", "tear the bridge down", "" },
+	{ "vlan list", "", h_ent_list, R_NO, "vlan", "saved vlan / macvlan / ipvlan / veth / dummy profiles", "" },
+	{ "vlan show", "NAME", h_ent_show, R_YES, "vlan", "live state of a profile's device", "" },
+	{ "vlan save", "NAME [KIND] [KEY=VALUE...]", h_ent_save, R_YES, "vlan", "create or replace a profile", "KIND: vlan (default; QinQ with proto=802.1ad) macvlan ipvlan veth dummy, e.g. `vlan save lan10 parent=eth0 id=10`." },
+	{ "vlan add", "NAME", h_ent_add, R_YES, "vlan", "create the device", "" },
+	{ "vlan del", "NAME", h_ent_del, R_YES, "vlan", "delete the device", "" },
+	{ "route list", "", h_ent_list, R_NO, "route", "saved route / rule / ecmp profiles", "" },
+	{ "route show", "NAME", h_ent_show, R_YES, "route", "live state of a profile's routes", "" },
+	{ "route save", "NAME [KIND] [KEY=VALUE...]", h_ent_save, R_YES, "route", "create or replace a profile", "KIND: route (default) rule ecmp." },
+	{ "route add", "NAME", h_ent_add, R_YES, "route", "install the routes / rules of a profile", "" },
+	{ "route del", "NAME", h_ent_del, R_YES, "route", "remove them again", "" },
+	{ "route ecmp", "NAME", h_ent_ecmp, R_YES, "route", "run the multi-uplink failover loop for an ecmp profile", "Probes each uplink with an ICMP echo bound to its interface; fail_after / ok_after consecutive results flip it, the default route (metric 50) follows. Ctrl-C stops." },
+	{ "link list", "", h_ent_list, R_NO, "link", "saved link / ipv6 / wol profiles", "" },
+	{ "link show", "NAME", h_ent_show, R_YES, "link", "live state of the profile's interface setting", "" },
+	{ "link save", "NAME [KIND] [KEY=VALUE...]", h_ent_save, R_YES, "link", "create or replace a profile", "KIND: link (default: ethtool, MTU) ipv6 wol, e.g. `link save nic0 link iface=eth0 mtu=9000`." },
+	{ "link add", "NAME", h_ent_add, R_YES, "link", "apply the setting", "" },
+	{ "link del", "NAME", h_ent_del, R_YES, "link", "undo it where that is possible", "" },
+	{ "dot1x list", "", h_ent_list, R_NO, "dot1x", "saved wired 802.1X profiles", "" },
+	{ "dot1x show", "NAME", h_ent_show, R_YES, "dot1x", "whether the supplicant of the profile runs", "" },
+	{ "dot1x save", "NAME [KEY=VALUE...]", h_ent_save, R_YES, "dot1x", "create or replace a profile (stored 0600)", "" },
+	{ "dot1x add", "NAME", h_ent_add, R_YES, "dot1x", "start the wpa_supplicant of the interface", "" },
+	{ "dot1x del", "NAME", h_ent_del, R_YES, "dot1x", "stop it", "" },
+	{ "tether list", "", h_ent_list, R_NO, "tether", "saved tethering profiles", "" },
+	{ "tether save", "NAME [KEY=VALUE...]", h_ent_save, R_YES, "tether", "create or replace a tethering profile", "Share the uplink out of a USB / Bluetooth device or take one in; sharing changes firewall and forwarding." },
+	{ "tether add", "NAME", h_ent_add, R_YES, "tether", "start tethering (nft table `inet netman_tether`, dnsmasq)", "" },
+	{ "tether del", "NAME", h_ent_del, R_YES, "tether", "stop it", "" },
+	{ "tether detect", "", h_ent_tether, R_NO, "tether", "detected USB (RNDIS/NCM/ECM/ipheth) and Bluetooth PAN tethering devices", "Tether profiles are saved and applied with `netman ent ...` (kind tether)." },
+	{ "ent list", "", h_ent_list, R_NO, NULL, "every saved link profile (old all-in-one group: bridge, vlan, route, link, dot1x, tether ...)", "" },
+	{ "ent show", "NAME", h_ent_show, R_YES, NULL, "live state of a profile's device", "" },
+	{ "ent save", "NAME KIND [KEY=VALUE...]", h_ent_save, R_YES, NULL, "create or replace a profile", "KIND: bond team bridge vlan macvlan ipvlan veth dummy tether dot1x route rule ecmp link ipv6 wol. Keys are the profile keys, e.g. `ent save bond0 bond mode=802.3ad member=eth0 member=eth1 miimon=100`. Stored as NAME.ent in the netman config directory." },
+	{ "ent add", "NAME", h_ent_add, R_YES, NULL, "create the device / install the routes of a profile", "The module of the profile's kind must be enabled. Everything goes through rtnetlink, ethtool ioctls and /proc/sys; only nft, dnsmasq and wpa_supplicant are ever exec'd, and only for tether and 802.1X." },
+	{ "ent del", "NAME", h_ent_del, R_YES, NULL, "tear a profile's device / routes down", "" },
+	{ "ent apply", "", h_ent_apply, R_YES, NULL, "apply every saved profile of an enabled module in dependency order", "dummy/veth, bond/team, bridge, vlan/macvlan/ipvlan, link/ipv6/wol, route/rule/ecmp, tether/dot1x." },
+	{ "ent ecmp", "NAME", h_ent_ecmp, R_YES, NULL, "run the multi-uplink failover loop for an ecmp profile (= route ecmp)", "" },
+	{ "ent tether", "", h_ent_tether, R_NO, "tether", "detected tethering devices (= tether detect)", "" },
+	{ "wol", "IFACE MAC", h_wol, R_YES, "link", "send a Wake-on-LAN magic packet out of IFACE", "UDP broadcast to port 9. Setting the NIC itself to wake on LAN is `link save NAME wol iface=IFACE wol=g`." },
+	{ "licence status", "", h_lic_status, R_NO, "licence", "licences and their expiry (exit 1 when any expires soon or has)", "Files NAME.lic in licence.dir. Warns inside licence.warn_days." },
+	{ "licence renew", "NAME", h_lic_renew, R_YES, "licence", "renew a licence through licence.renew_hook", "The hook gets NAME CURRENT_PATH NEW_PATH and writes the new licence; netman checks it names the same licence and expires later, then swaps atomically and keeps NAME.lic.prev. netman itself never contacts a network." },
+	{ "key rotate", "NAME", h_key_rotate, R_YES, "licence", "new WireGuard key for NAME; prints the new public key", "Writes NAME.key mode 0600, keeps the old one as NAME.key.prev, then runs licence.key_apply_hook (NAME PUBKEY); if the hook fails the old key is restored. No `wg` binary needed." },
 	{ "key show", "NAME", h_key_show, R_YES, "licence", "public key of NAME.key", "" },
 	{ "wg show", "[IF]", h_wg_show, R_YES, "wireguard", "live WireGuard state: port, peers, endpoint, allowed ips, handshake age, transfer", "Without IF: every profile of the vpn directory that is up. Reading the device needs root." },
 	{ "wg genkey", "", h_wg_genkey, R_NO, "wireguard", "new private key on stdout (nothing is written)", "" },

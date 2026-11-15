@@ -1,6 +1,12 @@
 src/netman.c
 src/config.c
 src/mods/netlink.c
+src/mods/nl_bond.c
+src/mods/nl_bridge.c
+src/mods/nl_vlan.c
+src/mods/nl_route.c
+src/mods/nl_link.c
+src/mods/nl_dot1x.c
 src/mods/wol.c
 src/mods/tether.c
 src/mods/licence.c

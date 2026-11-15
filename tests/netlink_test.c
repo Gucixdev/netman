@@ -1,10 +1,10 @@
 #define _GNU_SOURCE
-/* netlink_test.c - self-test for src/mods/netlink.c src/mods/wol.c, tether.c and licence.c.
+/* netlink_test.c - self-test for src/mods/netlink.c src/mods/nl_bond.c src/mods/nl_bridge.c src/mods/nl_vlan.c src/mods/nl_route.c src/mods/nl_link.c src/mods/nl_dot1x.c src/mods/wol.c, tether.c and licence.c.
  *
  *   ./netlink_test            runs everything inside its OWN user+net namespace (the host network is never touched;
  *                                it refuses to run if the namespace cannot be made)
  *
- * Build (from netman/): cc -O2 -o tests/netlink_test tests/netlink_test.c src/mods/netlink.c src/mods/wol.c src/mods/tether.c src/mods/licence.c
+ * Build (from netman/): cc -O2 -o tests/netlink_test tests/netlink_test.c src/mods/netlink.c src/mods/nl_bond.c src/mods/nl_bridge.c src/mods/nl_vlan.c src/mods/nl_route.c src/mods/nl_link.c src/mods/nl_dot1x.c src/mods/wol.c src/mods/tether.c src/mods/licence.c
  * Things the kernel/driver/namespace does not allow are reported as SKIP, not as failures.
  * `ip` and `nsenter` are used by the TEST only, as an independent cross-check and to set up the peer netns.
  */

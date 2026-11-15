@@ -51,14 +51,18 @@
 	X(METRICS_ENABLED, "metrics", "enabled", "bool", "yes", "Interface counters and rates: the metrics commands, the rates in the TUI.") \
 	X(METRICS_DIR, "metrics", "dir", "path", "/var/lib/netman/metrics", "Where `metrics record` appends one TSV file per interface (rotated at 1 MiB).") \
 	X(METRICS_INTERVAL, "metrics", "interval_s", "int:1:3600", "5", "Seconds between samples for `metrics watch` and `metrics record --loop`.") \
-	X(NL_ENABLED, "enterprise", "enabled", "bool", "no", "Enterprise networking: bonding, bridges, vlans, routes and rules, ECMP, tethering. Off by default: it changes links and routes.") \
-	X(NL_PROBE_MS, "enterprise", "probe_ms", "int:100:60000", "1000", "ECMP: per-uplink ICMP probe timeout and the tick between probes (ms).") \
-	X(LIC_DIR, "enterprise", "licence_dir", "path", "/etc/netman/licences", "Where licence (.lic) and VPN key (.key) files live.") \
-	X(LIC_WARN, "enterprise", "licence_warn_days", "int:0:365", "30", "`licence status` flags a licence expiring within this many days.") \
-	X(LIC_RENEW_HOOK, "enterprise", "renew_hook", "cmd", "", "Command (split on spaces, no shell) run by `licence renew NAME`: gets NAME CURRENT_PATH NEW_PATH and must write the renewed licence to NEW_PATH. netman never contacts a network for renewal itself.") \
-	X(LIC_APPLY_HOOK, "enterprise", "key_apply_hook", "cmd", "", "Command run after `key rotate NAME`: gets NAME NEW_PUBKEY; failing restores the old key.") \
-	X(LICENCE_ENABLED, "licence", "enabled", "bool", "yes", "Licence files, expiry check, renewal hook and WireGuard key rotation: the licence and key commands, the licence line in the Enterprise tab.") \
-	X(TETHER_ENABLED, "tether", "enabled", "bool", "no", "USB / Bluetooth tethering detection and share-out: `ent tether`, tether profile adds, the tether rows in the Enterprise tab. Off by default: sharing changes firewall and forwarding.") \
+	X(BRIDGE_ENABLED, "bridge", "enabled", "bool", "no", "Bridges (`netman bridge ...`, bridge profiles, the Links tab). Off by default: it creates links and enslaves interfaces.") \
+	X(VLAN_ENABLED, "vlan", "enabled", "bool", "no", "VLAN / QinQ / macvlan / ipvlan / veth / dummy devices (`netman vlan ...`, their profiles, the Links tab). Off by default: it creates links.") \
+	X(ROUTE_ENABLED, "route", "enabled", "bool", "no", "Routes, policy rules and ECMP multi-uplink failover (`netman route ...`, their profiles, the Links tab). Off by default: it changes the routing table.") \
+	X(NL_PROBE_MS, "route", "probe_ms", "int:100:60000", "1000", "ECMP: per-uplink ICMP probe timeout and the tick between probes (ms).") \
+	X(LINK_ENABLED, "link", "enabled", "bool", "no", "Per-link settings: ethtool, MTU, IPv6 sysctls, Wake-on-LAN (`netman link ...`, their profiles, the Links tab). Off by default: it changes interfaces.") \
+	X(DOT1X_ENABLED, "dot1x", "enabled", "bool", "no", "Wired 802.1X (a wpa_supplicant per interface: `netman dot1x ...`, their profiles, the Links tab). Off by default.") \
+	X(LIC_DIR, "licence", "dir", "path", "/etc/netman/licences", "Where licence (.lic) and VPN key (.key) files live.") \
+	X(LIC_WARN, "licence", "warn_days", "int:0:365", "30", "`licence status` flags a licence expiring within this many days.") \
+	X(LIC_RENEW_HOOK, "licence", "renew_hook", "cmd", "", "Command (split on spaces, no shell) run by `licence renew NAME`: gets NAME CURRENT_PATH NEW_PATH and must write the renewed licence to NEW_PATH. netman never contacts a network for renewal itself.") \
+	X(LIC_APPLY_HOOK, "licence", "key_apply_hook", "cmd", "", "Command run after `key rotate NAME`: gets NAME NEW_PUBKEY; failing restores the old key.") \
+	X(LICENCE_ENABLED, "licence", "enabled", "bool", "yes", "Licence files, expiry check, renewal hook and WireGuard key rotation: the licence and key commands, the licence line in the Links tab.") \
+	X(TETHER_ENABLED, "tether", "enabled", "bool", "no", "USB / Bluetooth tethering detection and share-out: `netman tether`, tether profile adds, the tether rows in the Links tab. Off by default: sharing changes firewall and forwarding.") \
 	X(WG_ENABLED, "wireguard", "enabled", "bool", "yes", "Native WireGuard (generic netlink): the wg commands and WireGuard profiles of the vpn commands. no = only OpenVPN profiles work.") \
 	X(NMAPI_ENABLED, "nmapi", "enabled", "bool", "yes", "NetworkManager D-Bus API (org.freedesktop.NetworkManager) served by `netman daemon`, so nm-applet / libnm / nmcli style clients work against netman.") \
 	X(NMAPI_REFRESH, "nmapi", "refresh_s", "int:1:3600", "5", "Seconds between the daemon's looks at the links and the Wi-Fi state (it emits the D-Bus signals for whatever changed).") \
@@ -86,7 +90,7 @@
 	X(MESH_DIR, "mesh", "dir", "path", "/etc/netman/mesh", "Profiles NAME.mesh, peer lists NAME.peers and private keys NAME.key (mode 0600).") \
 	X(MESH_IP, "mesh", "ip_bin", "cmd", "", "Absolute path of ip (iproute2), needed for batman-adv only; the WireGuard mesh uses netlink. Empty = from PATH.") \
 	X(MESH_BATCTL, "mesh", "batctl_bin", "cmd", "", "Absolute path of batctl, optional: tuning and `mesh neighbors` for batman-adv. Empty = from PATH.") \
-	X(BOND_ENABLED, "bonding", "enabled", "bool", "no", "Link bonding (`netman bond ...`, the Bond tab). Off by default: it creates links. Same code as the enterprise bond profiles.") \
+	X(BOND_ENABLED, "bonding", "enabled", "bool", "no", "Link bonding (`netman bond ...`, the Bond tab). Off by default: it creates links. Bond profiles share the code of the other link modules.") \
 	X(TUN_ENABLED, "tunnel", "enabled", "bool", "no", "GRE / gretap / ipip / sit / VXLAN / Geneve / L2TPv3 tunnels (`netman tunnel ...`, the Tunnel tab). Off by default: it creates links.") \
 	X(TUN_DIR, "tunnel", "dir", "path", "/etc/netman/tunnel", "Tunnel profiles NAME.tun.") \
 	X(TUN_IP, "tunnel", "ip_bin", "cmd", "", "Absolute path of ip (iproute2), used for L2TPv3 only; the other kinds use netlink. Empty = from PATH.") \

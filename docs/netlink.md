@@ -1,14 +1,15 @@
-# netlink: the enterprise networking module (`ent`, `licence`, `key`, `wol`)
+# netlink: the link modules (`bridge`, `vlan`, `route`, `link`, `dot1x`, `tether`, `bond`, plus `licence`, `key`, `wol`)
 
-Files: `src/mods/netlink.c` + `netlink.h` (bonding/team, bridge + STP + vlan filtering, vlan/QinQ, macvlan, ipvlan, veth, dummy, routes, rules
-and tables, ECMP failover, link settings, IPv6 / prefix delegation, wired 802.1X, `.ent` profiles), `netlink_priv.h` (private helpers, not an API),
+Files: `src/mods/netlink.c` + `netlink.h` (shared netlink helpers, the `.ent` profile parser/formatter/store and the kind dispatch), one file per module:
+`nl_bond.c` (bonding/team), `nl_bridge.c` (bridge + STP + vlan filtering), `nl_vlan.c` (vlan/QinQ, macvlan, ipvlan, veth, dummy), `nl_route.c` (routes, rules and
+tables, ECMP failover), `nl_link.c` (link settings, IPv6 / prefix delegation), `nl_dot1x.c` (wired 802.1X); `netlink_priv.h` (private helpers, not an API),
 `wol.c` (Wake-on-LAN), `tether.c` (USB / Bluetooth tethering detection, share-out, client mode, BT PAN), `licence.c` + `licence.h` (licences,
-hook renewal, WireGuard key rotation). Test: `tests/netlink_test.c` (run by `tests/run`). The user-facing names (`enterprise.*` config keys, the `ent`
-command group, the Enterprise tab) are unchanged; the old "enterprise" file and symbol names are gone (`nl_` prefix now).
+hook renewal, WireGuard key rotation). Test: `tests/netlink_test.c` (run by `tests/run`). There is no "enterprise" switch: every feature is an ordinary module with its own `enabled` key (below), and the TUI shows their live state in
+the Links tab. The old `ent` command group and the `[enterprise]` config section still work (see Compatibility).
 
 This file replaces the old `enterprise-wiring.md`, which was a patch description for wiring the module in; the wiring is done and lives in
 `src/cli.h` (command table), `src/config.h` / `src/config.c` (the keys), `src/help.c` and `src/netman.c`. The source of truth for commands is
-`netman help ent|licence|key|wol` and `src/netman.conf.example`.
+`netman help bridge|vlan|route|link|dot1x|tether|ent|licence|key|wol` and `src/netman.conf.example`.
 
 ## Build
 
@@ -16,14 +17,24 @@ Nothing special: the modules are in `src/sources` and `tools/cc` / `./run` link 
 dbus.h's implementation in the same translation unit as tether.c, which a separate .c cannot get from netman.c's static dbus code; until bluez PAN
 is wanted the flag stays off and `btpan` returns -ENOSYS with a clear message.
 
-## Config (`[enterprise]`, all in `src/netman.conf.example`)
+## Config (all in `src/netman.conf.example`)
 
-`enabled` (off by default: it changes links and routes; read-only commands work without it), `probe_ms` (ECMP probe timeout and tick),
-`licence_dir`, `licence_warn_days`, `renew_hook`, `key_apply_hook`. `[licence]` switches the `licence` and `key` groups.
+One section per module, each with `enabled` (off by default for the ones that change links and routes; a module that is off refuses its commands, like every other module; `netman ent list` still lists all profiles):
+`[bridge]`, `[vlan]` (vlan, QinQ, macvlan, ipvlan, veth, dummy), `[route]` (routes, rules, ECMP; `probe_ms` = ECMP probe timeout and tick),
+`[link]` (ethtool, MTU, IPv6, Wake-on-LAN), `[dot1x]`, `[tether]`, `[bonding]`. `[licence]` switches the `licence` and `key` groups and holds
+`dir`, `warn_days`, `renew_hook`, `key_apply_hook`.
+
+### Compatibility
+
+The old `[enterprise]` section (and `NETMAN_ENTERPRISE_*` variables) still loads: `enabled` turns bridge, vlan, route, link and dot1x on or off
+together, `probe_ms` is `route.probe_ms`, `licence_dir` / `licence_warn_days` / `renew_hook` / `key_apply_hook` are the `[licence]` keys. `netman ent ...`
+stays as the all-in-one spelling of the module commands; each profile is still gated by its own module.
 
 ## Commands
 
-    netman ent list|show NAME|save NAME KIND [KEY=VALUE...]|add NAME|del NAME|apply|ecmp NAME|tether
+    netman bridge|vlan|route|link|dot1x|tether  list | show NAME | save NAME [KIND] [KEY=VALUE...] | add NAME | del NAME
+    netman route ecmp NAME      netman tether detect
+    netman ent list|show NAME|save NAME KIND [KEY=VALUE...]|add NAME|del NAME|apply|ecmp NAME|tether     (old all-in-one spelling; apply = every profile of an enabled module)
     netman wol IFACE MAC
     netman licence status|renew NAME            (status exits 1 when anything expires soon: usable in cron)
     netman key rotate NAME|show NAME

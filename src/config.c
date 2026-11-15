@@ -20,7 +20,7 @@ static const Key keys[NC_N] = {
 	NC_KEYS(X)
 #undef X
 };
-static const char *const sections[] = { "wifi", "bluetooth", "net", "roaming", "vpn", "firewall", "enterprise", "licence", "tether", "wireguard", "nmapi", "tor", "ssh", "mesh", "bonding", "tunnel", "metrics", "tui", "privileges", NULL };
+static const char *const sections[] = { "wifi", "bluetooth", "net", "roaming", "vpn", "firewall", "bridge", "vlan", "route", "link", "dot1x", "licence", "tether", "wireguard", "nmapi", "tor", "ssh", "mesh", "bonding", "tunnel", "metrics", "tui", "privileges", NULL };
 
 const char *netman_config_section(int k) { return keys[k].sec; }
 const char *netman_config_name(int k) { return keys[k].name; }
@@ -49,6 +49,30 @@ void netman_config_defaults(netman_config *c)
 		snprintf(c->v[k], sizeof c->v[k], "%s", keys[k].def);
 		snprintf(c->origin[k], sizeof c->origin[k], "default");
 	}
+}
+
+int netman_config_find(const char *dotted);
+/* The old [enterprise] section is gone (those features are ordinary modules now). Files and environments written for it still load:
+ * each old key maps to the new key(s) that took over its job. */
+static const struct { const char *old, *now; } legacy[] = {
+	{ "enterprise.enabled", "bridge.enabled vlan.enabled route.enabled link.enabled dot1x.enabled" },
+	{ "enterprise.probe_ms", "route.probe_ms" },
+	{ "enterprise.licence_dir", "licence.dir" }, { "enterprise.licence_warn_days", "licence.warn_days" },
+	{ "enterprise.renew_hook", "licence.renew_hook" }, { "enterprise.key_apply_hook", "licence.key_apply_hook" },
+};
+
+/* the new keys an old dotted key stands for (up to MAX, space separated names resolved), or 0 */
+static int legacy_keys(const char *dotted, int *out, int max)
+{
+	for (unsigned i = 0; i < sizeof legacy / sizeof *legacy; i++) {
+		char buf[200], *tok, *sp;
+		int n = 0;
+		if (strcmp(legacy[i].old, dotted)) continue;
+		snprintf(buf, sizeof buf, "%s", legacy[i].now);
+		for (tok = strtok_r(buf, " ", &sp); tok && n < max; tok = strtok_r(NULL, " ", &sp)) { int k = netman_config_find(tok); if (k >= 0) out[n++] = k; }
+		return n;
+	}
+	return 0;
 }
 
 int netman_config_find(const char *dotted)
@@ -261,6 +285,7 @@ int netman_config_parse(netman_config *c, const char *text, size_t len, const ch
 			while (*p == ' ' || *p == '\t') p++;
 			for (q = p + strlen(p); q > p && (q[-1] == ' ' || q[-1] == '\t'); ) *--q = 0;
 			for (int i = 0; sections[i]; i++) if (!strcmp(p, sections[i])) ok = 1;
+			if (!strcmp(p, "enterprise")) ok = 1;   /* legacy section, see legacy[] */
 			if (!ok) {
 				if (netman_config_suggest(p, sug, sizeof sug)) seterr(err, errsz, "%s:%d: unknown section [%.40s] (did you mean [%s]?)", fname, lineno, p, sug);
 				else seterr(err, errsz, "%s:%d: unknown section [%.40s]", fname, lineno, p);
@@ -294,6 +319,16 @@ int netman_config_parse(netman_config *c, const char *text, size_t len, const ch
 		else snprintf(full, sizeof full, "%s.%s", sec, key);
 		if (!*sec && !strchr(key, '.')) { seterr(err, errsz, "%s:%d: '%s' is outside any [section]; write [section] first or use section.%s", fname, lineno, key, key); return -1; }
 		if ((k = netman_config_find(full)) < 0) {
+			int lk[8], ln = legacy_keys(full, lk, 8);
+			if (ln > 0) {
+				char norm[256];
+				for (int i = 0; i < ln; i++) {
+					if (netman_config_check_value(lk[i], val, norm, sizeof norm, msg, sizeof msg)) { seterr(err, errsz, "%s:%d: %s", fname, lineno, msg); return -1; }
+					snprintf(c->v[lk[i]], sizeof c->v[lk[i]], "%s", norm);
+					snprintf(c->origin[lk[i]], sizeof c->origin[lk[i]], "%.100s:%d (old key %.40s)", fname, lineno, full);
+				}
+				continue;
+			}
 			char want[1100];
 			snprintf(want, sizeof want, "%s", strchr(key, '.') || !*sec ? key : key);
 			if (netman_config_suggest(strchr(key, '.') ? key : key, sug, sizeof sug))
@@ -369,6 +404,23 @@ int netman_config_env(netman_config *c, char *err, size_t errsz)
 		snprintf(c->v[k], sizeof c->v[k], "%s", norm);
 		snprintf(c->origin[k], sizeof c->origin[k], "env %s", name);
 		changed = 1;
+	}
+	for (unsigned i = 0; i < sizeof legacy / sizeof *legacy; i++) {   /* NETMAN_ENTERPRISE_ENABLED and friends */
+		const char *v;
+		int lk[8], ln = legacy_keys(legacy[i].old, lk, 8);
+		snprintf(name, sizeof name, "NETMAN_%s", legacy[i].old);
+		for (char *p = name; *p; p++) *p = *p == '.' ? '_' : (char)toupper((unsigned char)*p);
+		v = getenv(name);
+		if (!v || !*v) continue;
+		for (int j = 0; j < ln; j++) {
+			char envnew[96];
+			envname(lk[j], envnew, sizeof envnew);
+			if (getenv(envnew) && *getenv(envnew)) continue;   /* the new name wins */
+			if (netman_config_check_value(lk[j], v, norm, sizeof norm, msg, sizeof msg)) { seterr(err, errsz, "environment %s: %s", name, msg); return -1; }
+			snprintf(c->v[lk[j]], sizeof c->v[lk[j]], "%s", norm);
+			snprintf(c->origin[lk[j]], sizeof c->origin[lk[j]], "env %s", name);
+			changed = 1;
+		}
 	}
 	if (changed && rssi_order(c, msg, sizeof msg)) { seterr(err, errsz, "environment: %s", msg); return -1; }
 	return 0;

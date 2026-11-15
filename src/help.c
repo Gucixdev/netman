@@ -40,10 +40,10 @@ static const char *const nc_tui_help[] = {
 	"  K        toggle the nftables kill switch;  i  details: endpoint, allowed ips, handshake age, transfer, split tunnel",
 	"  States: up, down, connecting, failed; locked = unreadable (run as root), untrusted = file must be root/self",
 	"  owned and not group/world writable. Creating tunnels needs root: with VPN profiles present the TUI asks sudo.",
-	"ENTERPRISE (only with enterprise.enabled = yes)",
+	"LINKS (only while one of bridge / vlan / route / link / dot1x / tether is enabled)",
 	"  read-only status: bonds, bridges, vlans, uplinks (ECMP), tethering (when tether.enabled) and licences",
 	"  (when licence.enabled), from the saved .ent profiles and the live kernel state;  i  details of the selected",
-	"  row;  I  the same plus the raw profile text. Changes are made with  netman ent ... / licence ... / key ...",
+	"  row;  I  the same plus the raw profile text. Changes are made with  netman bridge|vlan|route|link|dot1x|tether ... / licence ... / key ...",
 	"SETTINGS (its own tab, last in the tab bar: every netman.conf key, same data as `netman settings`)",
 	"  tabs: Modules (the on/off switch of every module) then one tab per area; a module's tab exists only while it is enabled",
 	"  j k move;  h l change page;  tab / shift-tab / 1-5 change the main tab;  / search all settings;  esc clears the search;  q quit",
@@ -63,15 +63,18 @@ static const char *const nc_tui_help[] = {
 
 /* one-paragraph notes per command group: `netman help GROUP` and the man page */
 static const struct { const char *group, *text; } nc_group_notes[] = {
-	{ "ent", "enterprise networking: bonding/teaming, bridges with STP and vlan filtering, vlans and QinQ, macvlan/ipvlan, veth, routes, rules and tables, ECMP with failover, link settings, IPv6 prefix delegation, USB/Bluetooth tethering, wired 802.1X. "
-	         "Profiles are NAME.ent files (\"key = value\", same syntax as net profiles) in the netman config directory. "
-	         "team is bonding: the kernel team driver is deprecated, so kind=team maps runner= (activebackup, lacp, loadbalance, broadcast, roundrobin) onto the bonding driver. "
-	         "Tethering share-out uses its own nft table `inet netman_tether` (firewall.h replaces `inet netman`, so the two never clobber each other); an accept there cannot override a drop in another table, so a strict firewall must allow the downstream interface itself. "
-	         "Changing commands need enterprise.enabled = yes." },
+	{ "ent", "the old all-in-one name of the link-module commands (bridge, vlan, route, link, dot1x, tether), kept so scripts keep working; each profile is gated by its own module's enabled switch. "
+	         "Profiles are NAME.ent files (\"key = value\", same syntax as net profiles) in the netman config directory. `ent apply` applies every profile of an enabled module in dependency order." },
+	{ "bridge", "bridges with STP and vlan filtering. Profiles NAME.ent (kind bridge). Switched by bridge.enabled (off by default: it creates links)." },
+	{ "vlan", "vlans and QinQ, macvlan, ipvlan, veth pairs, dummy devices. Profiles NAME.ent. Switched by vlan.enabled (off by default)." },
+	{ "route", "routes, policy rules and tables, ECMP multi-uplink failover with per-uplink probes (route.probe_ms). Profiles NAME.ent. Switched by route.enabled (off by default: it changes the routing table)." },
+	{ "link", "per-link settings: ethtool, MTU, IPv6 prefix delegation / sysctls, Wake-on-LAN. Profiles NAME.ent. Switched by link.enabled (off by default)." },
+	{ "dot1x", "wired 802.1X: one wpa_supplicant per interface, profiles stored 0600. Switched by dot1x.enabled (off by default)." },
+	{ "tether", "USB / Bluetooth tethering: detection and share-out. The share-out uses its own nft table `inet netman_tether` (firewall.h replaces `inet netman`, so the two never clobber each other); an accept there cannot override a drop in another table, so a strict firewall must allow the downstream interface itself. Switched by tether.enabled (off by default)." },
 	{ "settings", "the settings schema (src/settings.c) as commands: list, get, set, toggle, reset, check, a JSON API (--dump-api) and dmenu helpers (menu | dmenu | pick). The Settings tab of the TUI shows the same data. Writes go to ~/.config/netman/netman.conf only, atomically, comments kept." },
 	{ "licence", "licence files NAME.lic with expiry, the expiry check (exit 1 when anything expires soon), and hook-driven renewal. Switched by licence.enabled." },
-	{ "key", "WireGuard key rotation (NAME.key in enterprise.licence_dir). Switched by licence.enabled." },
-	{ "wol", "Wake-on-LAN magic packet. Switched by enterprise.enabled." },
+	{ "key", "WireGuard key rotation (NAME.key in licence.dir). Switched by licence.enabled." },
+	{ "wol", "Wake-on-LAN magic packet. Switched by link.enabled." },
 	{ "wg", "native WireGuard over generic netlink (src/mods/wireguard.c), no wg binary: keys and live peer edits on a running interface (add, delete, new endpoint: the other peers keep their sessions). Profiles and routes stay with the vpn commands. Switched by wireguard.enabled; with it off only OpenVPN profiles come up." },
 };
 #define NC_NGROUPNOTES ((int)(sizeof nc_group_notes / sizeof *nc_group_notes))

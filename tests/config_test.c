@@ -19,6 +19,15 @@ int main(int argc, char **argv)
 	CHECK(parse(&c, "[wfi]\n", e) && strstr(e, "did you mean [wifi]"), "section typo: %s", e);
 	CHECK(parse(&c, "[wifi]\nbackend = foo\n", e) && strstr(e, "t.conf:2") && strstr(e, "auto|iwd|wpa"), "enum: %s", e);
 	CHECK(parse(&c, "[net]\ndns_mode=x\n", e), "enum2");
+	/* the old [enterprise] section still loads: it maps onto the modules that took over its keys */
+	CHECK(!parse(&c, "[enterprise]\nenabled = yes\nprobe_ms = 500\nlicence_dir = /x/lic\nlicence_warn_days = 7\n", e) && netman_config_bool(&c, NC_BRIDGE_ENABLED) && netman_config_bool(&c, NC_VLAN_ENABLED) &&
+	      netman_config_bool(&c, NC_ROUTE_ENABLED) && netman_config_bool(&c, NC_LINK_ENABLED) && netman_config_bool(&c, NC_DOT1X_ENABLED) && !netman_config_bool(&c, NC_TETHER_ENABLED) &&
+	      netman_config_int(&c, NC_NL_PROBE_MS) == 500 && !strcmp(netman_config_str(&c, NC_LIC_DIR), "/x/lic") && netman_config_int(&c, NC_LIC_WARN) == 7, "legacy [enterprise]: %s", e);
+	CHECK(strstr(c.origin[NC_BRIDGE_ENABLED], "old key enterprise.enabled"), "legacy origin %s", c.origin[NC_BRIDGE_ENABLED]);
+	CHECK(!parse(&c, "enterprise.enabled = yes\n[bridge]\nenabled = no\n", e) && netman_config_bool(&c, NC_VLAN_ENABLED) && !netman_config_bool(&c, NC_BRIDGE_ENABLED), "a later new key wins over the old one: %s", e);
+	CHECK(parse(&c, "[enterprise]\nenabled = maybe\n", e) && strstr(e, "t.conf:2"), "legacy value is still checked: %s", e);
+	CHECK(!parse(&c, "[bridge]\nenabled = yes\n[route]\nprobe_ms = 250\n[licence]\ndir = /y\nrenew_hook = /bin/true\n", e) && netman_config_bool(&c, NC_BRIDGE_ENABLED) && netman_config_int(&c, NC_NL_PROBE_MS) == 250, "new sections: %s", e);
+	CHECK(!netman_config_bool(&c, NC_LINK_ENABLED), "link modules default off");
 	CHECK(parse(&c, "[roaming]\nscore_threshold = 101\n", e) && strstr(e, "0 to 100"), "range: %s", e);
 	CHECK(parse(&c, "[roaming]\nscore_threshold = 5x\n", e), "int junk");
 	CHECK(parse(&c, "[vpn]\nkillswitch = maybe\n", e) && strstr(e, "yes or no"), "bool: %s", e);

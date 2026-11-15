@@ -105,7 +105,8 @@ for size in "100 26" "80 24" "40 12"; do
 	s=$(snap); grep -qE 'default|dns|net' <<<"$(sed -n 2p <<<"$s")" && ok || no "header row 2 at $1x$2" "$s"
 	for tab in 1 2 3 4; do
 		keys "$tab"; keys I
-		s=$(snap); w=$(awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }' <<<"$s")
+		for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do s=$(snap); grep -q "all info" <<<"$s" && break; sleep 0.25; done   # a key typed during a background refresh waits for it
+		w=$(awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }' <<<"$s")
 		[ "$w" -le "$1" ] && ok || no "tab $tab: no row wider than $1 in the I view at $1x$2" "$s"
 		grep -q "all info" <<<"$s" && ok || no "tab $tab: I view opened at $1x$2" "$s"
 		keys Next; keys j; keys I

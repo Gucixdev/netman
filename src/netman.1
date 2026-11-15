@@ -307,8 +307,101 @@ append one sample per interface to metrics.dir
 .B netman metrics watch [COUNT]
 print rates every metrics.interval_s seconds
 .TP
+.B netman bridge list
+saved bridge profiles
+.TP
+.B netman bridge show NAME
+live state of a bridge profile's device
+.TP
+.B netman bridge save NAME [KEY=VALUE...]
+create or replace a bridge profile. Keys are the profile keys, e.g. `bridge save br0 member=eth0 member=eth1 stp=yes vlan_filtering=yes`. Stored as NAME.ent in the netman config directory.
+.TP
+.B netman bridge add NAME
+create the bridge and enslave its members
+.TP
+.B netman bridge del NAME
+tear the bridge down
+.TP
+.B netman vlan list
+saved vlan / macvlan / ipvlan / veth / dummy profiles
+.TP
+.B netman vlan show NAME
+live state of a profile's device
+.TP
+.B netman vlan save NAME [KIND] [KEY=VALUE...]
+create or replace a profile. KIND: vlan (default; QinQ with proto=802.1ad) macvlan ipvlan veth dummy, e.g. `vlan save lan10 parent=eth0 id=10`.
+.TP
+.B netman vlan add NAME
+create the device
+.TP
+.B netman vlan del NAME
+delete the device
+.TP
+.B netman route list
+saved route / rule / ecmp profiles
+.TP
+.B netman route show NAME
+live state of a profile's routes
+.TP
+.B netman route save NAME [KIND] [KEY=VALUE...]
+create or replace a profile. KIND: route (default) rule ecmp.
+.TP
+.B netman route add NAME
+install the routes / rules of a profile
+.TP
+.B netman route del NAME
+remove them again
+.TP
+.B netman route ecmp NAME
+run the multi\-uplink failover loop for an ecmp profile. Probes each uplink with an ICMP echo bound to its interface; fail_after / ok_after consecutive results flip it, the default route (metric 50) follows. Ctrl\-C stops.
+.TP
+.B netman link list
+saved link / ipv6 / wol profiles
+.TP
+.B netman link show NAME
+live state of the profile's interface setting
+.TP
+.B netman link save NAME [KIND] [KEY=VALUE...]
+create or replace a profile. KIND: link (default: ethtool, MTU) ipv6 wol, e.g. `link save nic0 link iface=eth0 mtu=9000`.
+.TP
+.B netman link add NAME
+apply the setting
+.TP
+.B netman link del NAME
+undo it where that is possible
+.TP
+.B netman dot1x list
+saved wired 802.1X profiles
+.TP
+.B netman dot1x show NAME
+whether the supplicant of the profile runs
+.TP
+.B netman dot1x save NAME [KEY=VALUE...]
+create or replace a profile (stored 0600)
+.TP
+.B netman dot1x add NAME
+start the wpa_supplicant of the interface
+.TP
+.B netman dot1x del NAME
+stop it
+.TP
+.B netman tether list
+saved tethering profiles
+.TP
+.B netman tether save NAME [KEY=VALUE...]
+create or replace a tethering profile. Share the uplink out of a USB / Bluetooth device or take one in; sharing changes firewall and forwarding.
+.TP
+.B netman tether add NAME
+start tethering (nft table `inet netman_tether`, dnsmasq)
+.TP
+.B netman tether del NAME
+stop it
+.TP
+.B netman tether detect
+detected USB (RNDIS/NCM/ECM/ipheth) and Bluetooth PAN tethering devices. Tether profiles are saved and applied with `netman ent ...` (kind tether).
+.TP
 .B netman ent list
-saved enterprise profiles (bond, bridge, vlan, route, ecmp, tether ...)
+every saved link profile (old all\-in\-one group: bridge, vlan, route, link, dot1x, tether ...)
 .TP
 .B netman ent show NAME
 live state of a profile's device
@@ -317,31 +410,31 @@ live state of a profile's device
 create or replace a profile. KIND: bond team bridge vlan macvlan ipvlan veth dummy tether dot1x route rule ecmp link ipv6 wol. Keys are the profile keys, e.g. `ent save bond0 bond mode=802.3ad member=eth0 member=eth1 miimon=100`. Stored as NAME.ent in the netman config directory.
 .TP
 .B netman ent add NAME
-create the device / install the routes of a profile. Needs enterprise.enabled = yes. Everything goes through rtnetlink, ethtool ioctls and /proc/sys; only nft, dnsmasq and wpa_supplicant are ever exec'd, and only for tether and 802.1X.
+create the device / install the routes of a profile. The module of the profile's kind must be enabled. Everything goes through rtnetlink, ethtool ioctls and /proc/sys; only nft, dnsmasq and wpa_supplicant are ever exec'd, and only for tether and 802.1X.
 .TP
 .B netman ent del NAME
 tear a profile's device / routes down
 .TP
 .B netman ent apply
-apply every saved profile in dependency order. dummy/veth, bond/team, bridge, vlan/macvlan/ipvlan, link/ipv6/wol, route/rule/ecmp, tether/dot1x.
+apply every saved profile of an enabled module in dependency order. dummy/veth, bond/team, bridge, vlan/macvlan/ipvlan, link/ipv6/wol, route/rule/ecmp, tether/dot1x.
 .TP
 .B netman ent ecmp NAME
-run the multi\-uplink failover loop for an ecmp profile. Probes each uplink with an ICMP echo bound to its interface; fail_after / ok_after consecutive results flip it, the default route (metric 50) follows. Ctrl\-C stops.
+run the multi\-uplink failover loop for an ecmp profile (= route ecmp)
 .TP
 .B netman ent tether
-detected USB (RNDIS/NCM/ECM/ipheth) and Bluetooth PAN tethering devices
+detected tethering devices (= tether detect)
 .TP
 .B netman wol IFACE MAC
-send a Wake\-on\-LAN magic packet out of IFACE. UDP broadcast to port 9. Setting the NIC itself to wake on LAN is `ent save NAME wol wol=g`.
+send a Wake\-on\-LAN magic packet out of IFACE. UDP broadcast to port 9. Setting the NIC itself to wake on LAN is `link save NAME wol iface=IFACE wol=g`.
 .TP
 .B netman licence status
-licences and their expiry (exit 1 when any expires soon or has). Files NAME.lic in enterprise.licence_dir. Warns inside enterprise.licence_warn_days.
+licences and their expiry (exit 1 when any expires soon or has). Files NAME.lic in licence.dir. Warns inside licence.warn_days.
 .TP
 .B netman licence renew NAME
-renew a licence through enterprise.renew_hook. The hook gets NAME CURRENT_PATH NEW_PATH and writes the new licence; netman checks it names the same licence and expires later, then swaps atomically and keeps NAME.lic.prev. netman itself never contacts a network.
+renew a licence through licence.renew_hook. The hook gets NAME CURRENT_PATH NEW_PATH and writes the new licence; netman checks it names the same licence and expires later, then swaps atomically and keeps NAME.lic.prev. netman itself never contacts a network.
 .TP
 .B netman key rotate NAME
-new WireGuard key for NAME; prints the new public key. Writes NAME.key mode 0600, keeps the old one as NAME.key.prev, then runs enterprise.key_apply_hook (NAME PUBKEY); if the hook fails the old key is restored. No `wg` binary needed.
+new WireGuard key for NAME; prints the new public key. Writes NAME.key mode 0600, keeps the old one as NAME.key.prev, then runs licence.key_apply_hook (NAME PUBKEY); if the hook fails the old key is restored. No `wg` binary needed.
 .TP
 .B netman key show NAME
 public key of NAME.key
@@ -426,7 +519,25 @@ the terminal UI (also \-\-tui, \-t); ? inside shows help
 .SH COMMAND GROUPS
 .TP
 .B ent
-enterprise networking: bonding/teaming, bridges with STP and vlan filtering, vlans and QinQ, macvlan/ipvlan, veth, routes, rules and tables, ECMP with failover, link settings, IPv6 prefix delegation, USB/Bluetooth tethering, wired 802.1X. Profiles are NAME.ent files ("key = value", same syntax as net profiles) in the netman config directory. team is bonding: the kernel team driver is deprecated, so kind=team maps runner= (activebackup, lacp, loadbalance, broadcast, roundrobin) onto the bonding driver. Tethering share\-out uses its own nft table `inet netman_tether` (firewall.h replaces `inet netman`, so the two never clobber each other); an accept there cannot override a drop in another table, so a strict firewall must allow the downstream interface itself. Changing commands need enterprise.enabled = yes.
+the old all\-in\-one name of the link\-module commands (bridge, vlan, route, link, dot1x, tether), kept so scripts keep working; each profile is gated by its own module's enabled switch. Profiles are NAME.ent files ("key = value", same syntax as net profiles) in the netman config directory. `ent apply` applies every profile of an enabled module in dependency order.
+.TP
+.B bridge
+bridges with STP and vlan filtering. Profiles NAME.ent (kind bridge). Switched by bridge.enabled (off by default: it creates links).
+.TP
+.B vlan
+vlans and QinQ, macvlan, ipvlan, veth pairs, dummy devices. Profiles NAME.ent. Switched by vlan.enabled (off by default).
+.TP
+.B route
+routes, policy rules and tables, ECMP multi\-uplink failover with per\-uplink probes (route.probe_ms). Profiles NAME.ent. Switched by route.enabled (off by default: it changes the routing table).
+.TP
+.B link
+per\-link settings: ethtool, MTU, IPv6 prefix delegation / sysctls, Wake\-on\-LAN. Profiles NAME.ent. Switched by link.enabled (off by default).
+.TP
+.B dot1x
+wired 802.1X: one wpa_supplicant per interface, profiles stored 0600. Switched by dot1x.enabled (off by default).
+.TP
+.B tether
+USB / Bluetooth tethering: detection and share\-out. The share\-out uses its own nft table `inet netman_tether` (firewall.h replaces `inet netman`, so the two never clobber each other); an accept there cannot override a drop in another table, so a strict firewall must allow the downstream interface itself. Switched by tether.enabled (off by default).
 .TP
 .B settings
 the settings schema (src/settings.c) as commands: list, get, set, toggle, reset, check, a JSON API (\-\-dump\-api) and dmenu helpers (menu | dmenu | pick). The Settings tab of the TUI shows the same data. Writes go to ~/.config/netman/netman.conf only, atomically, comments kept.
@@ -435,10 +546,10 @@ the settings schema (src/settings.c) as commands: list, get, set, toggle, reset,
 licence files NAME.lic with expiry, the expiry check (exit 1 when anything expires soon), and hook\-driven renewal. Switched by licence.enabled.
 .TP
 .B key
-WireGuard key rotation (NAME.key in enterprise.licence_dir). Switched by licence.enabled.
+WireGuard key rotation (NAME.key in licence.dir). Switched by licence.enabled.
 .TP
 .B wol
-Wake\-on\-LAN magic packet. Switched by enterprise.enabled.
+Wake\-on\-LAN magic packet. Switched by link.enabled.
 .TP
 .B wg
 native WireGuard over generic netlink (src/mods/wireguard.c), no wg binary: keys and live peer edits on a running interface (add, delete, new endpoint: the other peers keep their sessions). Profiles and routes stay with the vpn commands. Switched by wireguard.enabled; with it off only OpenVPN profiles come up.
@@ -477,10 +588,10 @@ VPN
   K        toggle the nftables kill switch;  i  details: endpoint, allowed ips, handshake age, transfer, split tunnel
   States: up, down, connecting, failed; locked = unreadable (run as root), untrusted = file must be root/self
   owned and not group/world writable. Creating tunnels needs root: with VPN profiles present the TUI asks sudo.
-ENTERPRISE (only with enterprise.enabled = yes)
+LINKS (only while one of bridge / vlan / route / link / dot1x / tether is enabled)
   read\-only status: bonds, bridges, vlans, uplinks (ECMP), tethering (when tether.enabled) and licences
   (when licence.enabled), from the saved .ent profiles and the live kernel state;  i  details of the selected
-  row;  I  the same plus the raw profile text. Changes are made with  netman ent ... / licence ... / key ...
+  row;  I  the same plus the raw profile text. Changes are made with  netman bridge|vlan|route|link|dot1x|tether ... / licence ... / key ...
 SETTINGS (its own tab, last in the tab bar: every netman.conf key, same data as `netman settings`)
   tabs: Modules (the on/off switch of every module) then one tab per area; a module's tab exists only while it is enabled
   j k move;  h l change page;  tab / shift\-tab / 1\-5 change the main tab;  / search all settings;  esc clears the search;  q quit
@@ -595,29 +706,41 @@ Where `metrics record` appends one TSV file per interface (rotated at 1 MiB). De
 .B metrics.interval_s
 Seconds between samples for `metrics watch` and `metrics record \-\-loop`. Default: 5. Panel tab: Metrics.
 .TP
-.B enterprise.enabled
-Enterprise networking: bonding, bridges, vlans, routes and rules, ECMP, tethering. Off by default: it changes links and routes. Default: no. Acting on it needs root. Panel tab: Enterprise.
+.B bridge.enabled
+Bridges (`netman bridge ...`, bridge profiles, the Links tab). Off by default: it creates links and enslaves interfaces. Default: no. Acting on it needs root. Panel tab: Links.
 .TP
-.B enterprise.probe_ms
-ECMP: per\-uplink ICMP probe timeout and the tick between probes (ms). Default: 1000. Restart needed. Acting on it needs root. Panel tab: Enterprise.
+.B vlan.enabled
+VLAN / QinQ / macvlan / ipvlan / veth / dummy devices (`netman vlan ...`, their profiles, the Links tab). Off by default: it creates links. Default: no. Acting on it needs root. Panel tab: Links.
 .TP
-.B enterprise.licence_dir
-Where licence (.lic) and VPN key (.key) files live. Default: /etc/netman/licences. Acting on it needs root. Panel tab: Enterprise.
+.B route.enabled
+Routes, policy rules and ECMP multi\-uplink failover (`netman route ...`, their profiles, the Links tab). Off by default: it changes the routing table. Default: no. Acting on it needs root. Panel tab: Links.
 .TP
-.B enterprise.licence_warn_days
-`licence status` flags a licence expiring within this many days. Default: 30. Acting on it needs root. Panel tab: Enterprise.
+.B route.probe_ms
+ECMP: per\-uplink ICMP probe timeout and the tick between probes (ms). Default: 1000. Restart needed. Acting on it needs root. Panel tab: Links.
 .TP
-.B enterprise.renew_hook
-Command (split on spaces, no shell) run by `licence renew NAME`: gets NAME CURRENT_PATH NEW_PATH and must write the renewed licence to NEW_PATH. netman never contacts a network for renewal itself. Default: . Acting on it needs root. Panel tab: Enterprise.
+.B link.enabled
+Per\-link settings: ethtool, MTU, IPv6 sysctls, Wake\-on\-LAN (`netman link ...`, their profiles, the Links tab). Off by default: it changes interfaces. Default: no. Acting on it needs root. Panel tab: Links.
 .TP
-.B enterprise.key_apply_hook
-Command run after `key rotate NAME`: gets NAME NEW_PUBKEY; failing restores the old key. Default: . Acting on it needs root. Panel tab: Enterprise.
+.B dot1x.enabled
+Wired 802.1X (a wpa_supplicant per interface: `netman dot1x ...`, their profiles, the Links tab). Off by default. Default: no. Acting on it needs root. Panel tab: Links.
+.TP
+.B licence.dir
+Where licence (.lic) and VPN key (.key) files live. Default: /etc/netman/licences. Acting on it needs root. Panel tab: Licence.
+.TP
+.B licence.warn_days
+`licence status` flags a licence expiring within this many days. Default: 30. Acting on it needs root. Panel tab: Licence.
+.TP
+.B licence.renew_hook
+Command (split on spaces, no shell) run by `licence renew NAME`: gets NAME CURRENT_PATH NEW_PATH and must write the renewed licence to NEW_PATH. netman never contacts a network for renewal itself. Default: . Acting on it needs root. Panel tab: Licence.
+.TP
+.B licence.key_apply_hook
+Command run after `key rotate NAME`: gets NAME NEW_PUBKEY; failing restores the old key. Default: . Acting on it needs root. Panel tab: Licence.
 .TP
 .B licence.enabled
-Licence files, expiry check, renewal hook and WireGuard key rotation: the licence and key commands, the licence line in the Enterprise tab. Default: yes. Acting on it needs root. Panel tab: Enterprise.
+Licence files, expiry check, renewal hook and WireGuard key rotation: the licence and key commands, the licence line in the Links tab. Default: yes. Acting on it needs root. Panel tab: Licence.
 .TP
 .B tether.enabled
-USB / Bluetooth tethering detection and share\-out: `ent tether`, tether profile adds, the tether rows in the Enterprise tab. Off by default: sharing changes firewall and forwarding. Default: no. Acting on it needs root. Panel tab: Enterprise.
+USB / Bluetooth tethering detection and share\-out: `netman tether`, tether profile adds, the tether rows in the Links tab. Off by default: sharing changes firewall and forwarding. Default: no. Acting on it needs root. Panel tab: Links.
 .TP
 .B wireguard.enabled
 Native WireGuard (generic netlink): the wg commands and WireGuard profiles of the vpn commands. no = only OpenVPN profiles work. Default: yes. Acting on it needs root. Panel tab: VPN.
@@ -701,7 +824,7 @@ Absolute path of ip (iproute2), needed for batman\-adv only; the WireGuard mesh 
 Absolute path of batctl, optional: tuning and `mesh neighbors` for batman\-adv. Empty = from PATH. Default: . Acting on it needs root. Panel tab: Mesh.
 .TP
 .B bonding.enabled
-Link bonding (`netman bond ...`, the Bond tab). Off by default: it creates links. Same code as the enterprise bond profiles. Default: no. Acting on it needs root. Panel tab: Bond.
+Link bonding (`netman bond ...`, the Bond tab). Off by default: it creates links. Bond profiles share the code of the other link modules. Default: no. Acting on it needs root. Panel tab: Bond.
 .TP
 .B tunnel.enabled
 GRE / gretap / ipip / sit / VXLAN / Geneve / L2TPv3 tunnels (`netman tunnel ...`, the Tunnel tab). Off by default: it creates links. Default: no. Acting on it needs root. Panel tab: Tunnel.

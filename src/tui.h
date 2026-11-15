@@ -29,7 +29,7 @@ typedef struct { char name[96], sec[8], bssid[18], band[4]; int dbm, pct, chan, 
 typedef struct { char addr[18], alias[64]; int c, p, t, dbm; } nm_dev;                                                          /* dbm 0 = no reading */
 typedef struct { netman_if f; netman_ifstat st; int hasst; } nm_if;
 typedef struct { char name[48], kind[16], state[12], ep[80]; int up, active; long long hs, rx, tx; } nm_vpn;   /* up: state "up"; active: up or connecting; hs seconds since the handshake, -1 unknown; rx/tx -1 unknown */
-typedef struct { char kind[8], name[48], state[12], detail[132], prof[16]; int lvl; } nm_ent;   /* Enterprise row: lvl 0 ok, 1 attention, 2 bad; prof = saved .ent profile it came from or "" */
+typedef struct { char kind[8], name[48], state[12], detail[132], prof[16]; int lvl; } nm_ent;   /* Links row: lvl 0 ok, 1 attention, 2 bad; prof = saved .ent profile it came from or "" */
 typedef struct { char host[64], iface[16], gw[40], ip[64], ipkind[8], dns[96], word[64]; int score, ncheck; } nm_hdr;   /* the one-line header: score -1 = not measured yet */
 typedef struct { char key[96]; time_t first, last; } nm_seen;                                                          /* when this session first / last saw a Wi-Fi network */
 typedef struct { time_t t; char ssid[48], bssid[18]; } nm_roam;                                                       /* the access point the connected network used, newest last */
@@ -321,15 +321,15 @@ void nm_theme_make(nm_theme *t, int unicode, const char *name)
 	}
 }
 
-/* the Tor tab shows its status as read-only rows in the same list as the Enterprise tab */
-static int nm__entlike(const nm_ui *u) { return u->tab >= NM_ENT && u->tab < NM_SET; }   /* Enterprise, Tor, SSH, Mesh, Bond, Tunnel share the row list */
+/* the Tor tab shows its status as read-only rows in the same list as the Links tab */
+static int nm__entlike(const nm_ui *u) { return u->tab >= NM_ENT && u->tab < NM_SET; }   /* Links, Tor, SSH, Mesh, Bond, Tunnel share the row list */
 void nm_ui_init(nm_ui *u, int w, int h)
 {
 	memset(u, 0, sizeof *u);
 	u->w = w < 20 ? 20 : w;
 	u->h = h < 6 ? 6 : h;
 	for (int i = 0; i < NM_NTAB; i++) u->en[i] = 1;
-	u->en[NM_ENT] = 0; u->en[NM_TOR] = 0; u->en[NM_SSH] = 0; u->en[NM_MESH] = 0; u->en[NM_BOND] = 0; u->en[NM_TUN] = 0;                      /* the Enterprise tab exists only when enterprise.enabled (nc_tui) */
+	u->en[NM_ENT] = 0; u->en[NM_TOR] = 0; u->en[NM_SSH] = 0; u->en[NM_MESH] = 0; u->en[NM_BOND] = 0; u->en[NM_TUN] = 0;                      /* the Links tab exists only while one of the link modules is enabled (nc_tui) */
 	u->rssi_good = -55; u->rssi_ok = -65; u->rssi_weak = -75;
 	u->hdr.score = -1; u->ks = -1;
 	u->refresh_ms = 2000;
@@ -923,6 +923,7 @@ static int nm__child_exit(int rc)
 }
 
 static int nm__bg;                 /* 1 while a background auto-refresh runs: no busy modal, keys are queued instead of read as "cancel" */
+static int nm__tq;                 /* 1 while a tab is loaded for the first time: the busy modal shows, but typed keys are queued (only Esc / ^C cancel) */
 static int nm__pend[64], nm__npend; /* keys typed during such a refresh, handled by the main loop afterwards */
 
 static int nm__wait(void)
@@ -954,7 +955,7 @@ static int nm__wait(void)
 		}
 		if (pr > 0 && nm__raw_on && (p[1].revents & POLLIN) && !killed) {
 			int k = nm__read_key();
-			if (nm__bg) { if (k > 0 && nm__npend < 64) nm__pend[nm__npend++] = k; }
+			if (nm__bg || (nm__tq && k != NM_K_ESC && k != 3)) { if (k > 0 && nm__npend < 64) nm__pend[nm__npend++] = k; }
 			else if (k == NM_K_ESC || k == 3) { kill(nm__kid, SIGKILL); killed = nm__cancelled = 1; }
 		}
 		if (pr <= 0 && !nm__bg) { u->spin++; if (nm__redraw && nm__raw_on) nm__redraw(u); }
@@ -1050,7 +1051,7 @@ static void nm__eth_refresh(nm_ui *u)
 	u->loaded[NM_ETH] = 1;
 }
 
-/* ---- Enterprise tab: read-only rows from the saved .ent profiles, the live kernel state and the licence store ---- */
+/* ---- Links tab: read-only rows from the saved .ent profiles, the live kernel state and the licence store ---- */
 
 static const char *const nm__ent_order[] = { "bond", "bridge", "vlan", "uplink", "tether", "licence" };
 
@@ -1167,6 +1168,7 @@ static void nm__ent_refresh(nm_ui *u)
 	for (int i = 0; i < k; i++) {
 		netman_ent e;
 		if (netman_nl_load(names[i], &e) != 0) { nm__ent_add(u, "profile", names[i], "invalid", 2, names[i], "%s", netman_nl_error()); continue; }
+		if (!nc_kind_ok(e.kind)) continue;   /* its module is switched off */
 		if (!strcmp(e.kind, "bond") || !strcmp(e.kind, "team")) nm__ent_dev_row(u, "bond", e.name, &e);
 		else if (!strcmp(e.kind, "bridge")) nm__ent_dev_row(u, "bridge", e.name, &e);
 		else if (!strcmp(e.kind, "vlan") || !strcmp(e.kind, "macvlan") || !strcmp(e.kind, "ipvlan")) nm__ent_dev_row(u, "vlan", e.name, &e);
@@ -1190,7 +1192,7 @@ static void nm__ent_refresh(nm_ui *u)
 		const char *kind;
 		if (netman_nl_getinfo(t[i].name, &in) != 0) continue;
 		kind = !strcmp(in.kind, "bond") ? "bond" : !strcmp(in.kind, "bridge") ? "bridge" : !strcmp(in.kind, "vlan") || !strcmp(in.kind, "macvlan") || !strcmp(in.kind, "ipvlan") ? "vlan" : NULL;
-		if (kind && !nm__ent_has(u, kind, t[i].name)) nm__ent_dev_row(u, kind, t[i].name, NULL);
+		if (kind && nc_kind_ok(kind) && !nm__ent_has(u, kind, t[i].name)) nm__ent_dev_row(u, kind, t[i].name, NULL);
 	}
 	if (nc_enabled("tether")) {
 		netman_nl_tether_dev d[16];
@@ -1766,7 +1768,7 @@ static void nm__start_connect(nm_ui *u, const nm_net *e)
 		char shown[96];
 		nm__fit(shown, sizeof shown, e->name, 40, "...");
 		snprintf(u->ptitle, sizeof u->ptitle, "Connect to %s", shown);
-		snprintf(u->pinfo, sizeof u->pinfo, "Security: 802.1X (enterprise)");
+		snprintf(u->pinfo, sizeof u->pinfo, "Security: 802.1X");
 		nm__prompt(u, PK_IDENT, "identity: ", 0);
 		return;
 	}
@@ -1936,7 +1938,7 @@ static void nm__switch(nm_ui *u, int tab)
 	u->tab = tab;
 	(void)at;
 	if (tab == NM_SET) { nm__ss_enter(u); return; }
-	if (!u->loaded[u->tab]) nm_refresh(u);
+	if (!u->loaded[u->tab]) { nm__tq = 1; nm_refresh(u); nm__tq = 0; }
 	nm__clamp(u);
 }
 
@@ -2300,7 +2302,7 @@ static void nm__apply_cfg(nm_ui *u)
 	const netman_config *c = &nm__ss.c;
 	nc_cfg = *c;
 	nc_apply(&nc_cfg);
-	u->en[NM_WIFI] = nc_enabled("wifi"); u->en[NM_ETH] = nc_enabled("net"); u->en[NM_BT] = nc_enabled("bluetooth"); u->en[NM_VPN] = nc_enabled("vpn"); u->en[NM_ENT] = nc_enabled("enterprise");
+	u->en[NM_WIFI] = nc_enabled("wifi"); u->en[NM_ETH] = nc_enabled("net"); u->en[NM_BT] = nc_enabled("bluetooth"); u->en[NM_VPN] = nc_enabled("vpn"); u->en[NM_ENT] = nc_enabled("links");
 	u->en[NM_TOR] = nc_enabled("tor"); u->en[NM_SSH] = nc_enabled("ssh"); u->en[NM_MESH] = nc_enabled("mesh"); u->en[NM_BOND] = nc_enabled("bonding"); u->en[NM_TUN] = nc_enabled("tunnel");
 	u->rssi_good = netman_config_int(c, NC_WIFI_RSSI_GOOD); u->rssi_ok = netman_config_int(c, NC_WIFI_RSSI_OK); u->rssi_weak = netman_config_int(c, NC_WIFI_RSSI_WEAK);
 	u->refresh_ms = netman_config_int(c, NC_TUI_REFRESH_MS);
@@ -2352,7 +2354,7 @@ static int nc_tui(void)
 	nm_theme_make(&nm__theme, utf, th);
 	nm__utf_on = utf_auto;
 	nm_ui_init(&nm__ui, 80, 24);
-	nm__ui.en[NM_WIFI] = nc_enabled("wifi"); nm__ui.en[NM_ETH] = nc_enabled("net"); nm__ui.en[NM_BT] = nc_enabled("bluetooth"); nm__ui.en[NM_VPN] = nc_enabled("vpn"); nm__ui.en[NM_ENT] = nc_enabled("enterprise"); nm__ui.en[NM_TOR] = nc_enabled("tor"); nm__ui.en[NM_SSH] = nc_enabled("ssh"); nm__ui.en[NM_MESH] = nc_enabled("mesh"); nm__ui.en[NM_BOND] = nc_enabled("bonding"); nm__ui.en[NM_TUN] = nc_enabled("tunnel");
+	nm__ui.en[NM_WIFI] = nc_enabled("wifi"); nm__ui.en[NM_ETH] = nc_enabled("net"); nm__ui.en[NM_BT] = nc_enabled("bluetooth"); nm__ui.en[NM_VPN] = nc_enabled("vpn"); nm__ui.en[NM_ENT] = nc_enabled("links"); nm__ui.en[NM_TOR] = nc_enabled("tor"); nm__ui.en[NM_SSH] = nc_enabled("ssh"); nm__ui.en[NM_MESH] = nc_enabled("mesh"); nm__ui.en[NM_BOND] = nc_enabled("bonding"); nm__ui.en[NM_TUN] = nc_enabled("tunnel");
 	nm__ui.refresh_ms = netman_config_int(&nc_cfg, NC_TUI_REFRESH_MS);
 	nm__ui.rssi_good = netman_config_int(&nc_cfg, NC_WIFI_RSSI_GOOD); nm__ui.rssi_ok = netman_config_int(&nc_cfg, NC_WIFI_RSSI_OK); nm__ui.rssi_weak = netman_config_int(&nc_cfg, NC_WIFI_RSSI_WEAK);
 	for (int i = 0; i < NM_NTAB; i++) if (nm__ui.en[i]) { if (!ntab) nm__ui.tab = i; ntab++; }

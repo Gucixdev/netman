@@ -24,6 +24,29 @@ chk 2 "unknown command" "$N" frobnicate; contains "unknown command" "unknown com
 "$N" help >"$work/all"; "$N" help --man >"$work/man"
 cmp -s "$work/man" src/netman.1 && ok || no "src/netman.1 is out of date (regenerate: netman help --man > src/netman.1)"
 rows=$(grep -c '^  netman ' "$work/all"); [ "$rows" -ge 50 ] && ok || no "help lists $rows rows"
+# the link modules are ordinary modules (no "enterprise" switch): each group is gated by its own enabled key, the old ent group by the profile's module
+for m in bridge vlan route link dot1x tether; do
+	chk 0 "help $m" "$N" help "$m"; contains "netman $m " "help $m lists its commands"
+	chk 3 "$m list is refused while $m is off" "$N" "$m" list
+done
+chk 3 "bridge add refused while bridge is off" "$N" bridge add x; contains "disabled in config" "bridge off message"
+chk 3 "route ecmp refused while route is off" "$N" route ecmp x
+chk 0 "old ent group still exists" "$N" help ent
+"$N" help >"$work/all2"; grep -qi enterprise "$work/all2" && no "help still says enterprise" || ok
+chk 0 "old [enterprise] section loads" env NETMAN_CONFIG=/dev/stdin "$N" config check <<<"$(printf '[privileges]\nsudo = never\n[enterprise]\nenabled = yes\n')"
+printf '[privileges]\nsudo = never\n[enterprise]\nenabled = yes\n' >"$work/old.conf"
+chk 0 "old enterprise.enabled turns the modules on" env NETMAN_CONFIG="$work/old.conf" "$N" settings get route.enabled; contains "yes" "route enabled by the old key"
+chk 0 "old env NETMAN_ENTERPRISE_ENABLED" env NETMAN_ENTERPRISE_ENABLED=yes "$N" settings get vlan.enabled; contains "yes" "vlan enabled by the old variable"
+# shipped default profiles (share/profiles): ssh / mesh / tunnel show ready example rows out of the box, a profile of the same name in the dir wins
+printf '[privileges]\nsudo = never\n[ssh]\nenabled = yes\ndir = %s/ssh\n[mesh]\nenabled = yes\ndir = %s/mesh\n[tunnel]\nenabled = yes\ndir = %s/tun\n' "$work" "$work" "$work" >"$work/p.conf"
+for m in ssh mesh tunnel; do
+	chk 0 "$m status with the shipped profiles" env NETMAN_CONFIG="$work/p.conf" NETMAN_SHARE_DIR="$PWD/share" "$N" "$m" status; contains "example" "$m: the shipped example profile is listed"
+	[ "${LAST#*no $m profile}" = "$LAST" ] && ok || no "$m: still says 'no $m profile'"
+done
+chk 0 "ssh show a shipped profile" env NETMAN_CONFIG="$work/p.conf" NETMAN_SHARE_DIR="$PWD/share" "$N" ssh show example; contains "host = ssh.example.org" "ssh show reads the shipped file"
+mkdir -p "$work/ssh"; printf 'host = mine.example.net\n' >"$work/ssh/example.ssh"
+chk 0 "a user profile shadows the shipped one" env NETMAN_CONFIG="$work/p.conf" NETMAN_SHARE_DIR="$PWD/share" "$N" ssh show example; contains "mine.example.net" "user copy wins"
+chk 0 "without the share dir nothing is shown" env NETMAN_CONFIG="$work/p.conf" NETMAN_SHARE_DIR="$work/none" "$N" mesh status; contains "no mesh profiles" "empty mesh list as before"
 # config
 chk 0 "config check" "$N" config check
 chk 0 "config show" "$N" config show; contains "rssi_good" "show lists keys"

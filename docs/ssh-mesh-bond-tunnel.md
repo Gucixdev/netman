@@ -7,6 +7,13 @@ helpers: `src/mods/modkit.h` (profile files, argv-only process runner, name/valu
 
 Build: append `ssh.c mesh.c bonding.c tunnel.c` to the netman cc line (already done in `run`, the tests and the qemu harness).
 
+## Default profiles
+
+Convention over configuration: `share/profiles/` ships `example.ssh`, `example.mesh` and `example.tun`. netman lists and loads them next to the profiles in
+`ssh.dir` / `mesh.dir` / `tunnel.dir`, so a fresh install shows ready, editable rows (state `down`, `auto = no`) instead of "no profile". A file of the same
+name in the directory wins; `netman ssh|mesh|tunnel save NAME ...` writes a copy there. The share dir is `$NETMAN_SHARE_DIR`, else `share/` next to the binary,
+else `/usr/local/share/netman`, `/usr/share/netman`. The examples use documentation addresses (`ssh.example.org`, `192.0.2.0/24`): edit before `up`.
+
 ## ssh (`netman ssh ...`)
 
 Profile `NAME.ssh` in `ssh.dir`: `host user port key jump forward keepalive keepalive_count connect_timeout control reconnect reconnect_delay tun tun_addr strict known_hosts auto`.
@@ -27,7 +34,7 @@ Profile `NAME.ssh` in `ssh.dir`: `host user port key jump forward keepalive keep
 
 ## bonding (`netman bond ...`)
 
-Re-exports the enterprise bond code (`src/mods/enterprise`), same `.ent` profiles, so `ent save NAME bond ...` and `bond add` are the same thing. Modes and their switch requirements: `netman bond modes`.
+Re-exports the bond code of `src/mods/nl_bond.c`, same `.ent` profiles, so `ent save NAME bond ...` and `bond add` are the same thing. Modes and their switch requirements: `netman bond modes`.
 
 ## tunnel (`netman tunnel ...`)
 
@@ -38,6 +45,6 @@ Devices are created through rtnetlink (L2TPv3 through `ip l2tp`). `mtu = auto` i
 
 - ssh: only against fake `ssh`/`ssh-keyscan`/`ssh-keygen` scripts. No real server, no real jump host, no real `-L/-R/-D` traffic, no real `ssh -w` session (the tun address step is tested against a tun device made with `ip tuntap` in a private netns).
 - mesh/batman: the stand-in device is a `dummy` created by a fake `ip`; batman-adv itself (kernel module, batctl output, real multi-hop routing) has not run. mesh/wg: device, peers, address and link state are checked in a private netns; no handshake between real nodes, no traffic, NAT traversal not tried.
-- bonding: shared with the enterprise code; modes needing switch support (802.3ad) not tried against a real switch.
+- bonding: shared with the link modules (netlink.c); modes needing switch support (802.3ad) not tried against a real switch.
 - tunnel: devices are created and read back in a private netns (kinds the kernel refuses there are skipped); no traffic through them, MTU numbers are textbook overheads, not measured on a path. L2TPv3 depends on the `l2tp_*` modules.
 - TUI tabs are checked in tests/pty_mods with profile files only (no live connections).

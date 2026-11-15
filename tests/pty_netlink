@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# pty_netlink - drive the Enterprise tab of the real TUI against REAL bond / bridge / vlan devices inside `unshare -Urn` (user+net namespace:
-# nothing outside is touched). Profiles come from a temp dir via NETMAN_CONF_DIR, licences from enterprise.licence_dir. Checks that the tab
-# exists only with enterprise.enabled, shows bonds/bridges/vlans/uplinks/licences read-only, I/i details, 80x24 and 40x12.
+# pty_netlink - drive the Links tab of the real TUI against REAL bond / bridge / vlan devices inside `unshare -Urn` (user+net namespace:
+# nothing outside is touched). Profiles come from a temp dir via NETMAN_CONF_DIR, licences from licence.dir. Checks that the tab
+# exists only while a link module is enabled, shows bonds/bridges/vlans/uplinks/licences read-only, I/i details, 80x24 and 40x12.
 # Skips (exit 0) when unshare / tmux / bonding are unavailable.
 set -u
 self=$(readlink -f "$0"); cd "$(dirname "$self")" || exit 1
@@ -26,7 +26,7 @@ printf 'kind=bond\nname=bondx\nmode=active-backup\nmember=dummy1\n' >"$work/conf
 printf 'kind=ecmp\nname=wan\nuplink=dummy0,192.0.2.1,192.0.2.1,1\nuplink=dummy1,198.51.100.1,198.51.100.1,3\n' >"$work/conf/wan.ent"
 printf 'name=seat\nholder=ACME\nkind=support\nexpires=2099-12-31\nkey=SECRETSECRET\n' >"$work/lic/seat.lic"
 printf 'name=old\nholder=ACME\nkind=seat\nexpires=2020-01-01\n' >"$work/lic/old.lic"
-printf '[privileges]\nsudo = never\n[wifi]\nenabled = no\n[bluetooth]\nenabled = no\n[vpn]\nenabled = no\n[net]\nenabled = no\n[enterprise]\nenabled = yes\nlicence_dir = %s/lic\n' "$work" >"$work/c.conf"
+printf '[privileges]\nsudo = never\n[wifi]\nenabled = no\n[bluetooth]\nenabled = no\n[vpn]\nenabled = no\n[net]\nenabled = no\n[bridge]\nenabled = yes\n[vlan]\nenabled = yes\n[route]\nenabled = yes\n[bonding]\nenabled = yes\n[licence]\ndir = %s/lic\n' "$work" >"$work/c.conf"
 printf '[privileges]\nsudo = never\n[wifi]\nenabled = no\n[bluetooth]\nenabled = no\n[vpn]\nenabled = no\n[net]\nenabled = yes\n' >"$work/off.conf"
 T="tmux -L nment"
 pass=0 fail=0
@@ -44,9 +44,9 @@ start() { # cols rows config
 
 # --- disabled: no tab at all ---
 start 100 26 "$work/off.conf"
-has "1 Ethernet" "ethernet tab present"; hasnt "Links" "no Links tab when enterprise.enabled = no"
+has "1 Ethernet" "ethernet tab present"; hasnt "Links" "no Links tab while every link module is off"
 keys 2
-hasnt "wan:dummy0" "key 2 does not open an enterprise tab"
+hasnt "wan:dummy0" "key 2 does not open a Links tab"
 $T kill-server 2>/dev/null
 # --- enabled ---
 start 100 26 "$work/c.conf"

@@ -8,7 +8,7 @@ set -u
 cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
 O=$(mktemp -d); trap 'rm -rf "$O"' EXIT
 pick() { grep -E "/($1)\\.c\$" src/sources | tr '\n' ' '; }
-NL=$(pick 'netlink|wol|tether|licence')
+NL=$(pick 'netlink|nl_[a-z0-9]+|wol|tether|licence')
 VPN=$(pick 'wireguard|vpnmod|openvpn|ipsec|l2tp|openconnect|sstp|vpnimport|tor')
 MOD() { pick "$1"; }
 pass=0; failed=""; skipped=""

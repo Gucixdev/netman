@@ -2,7 +2,7 @@
 /* mesh_test.c - src/mods/mesh.c: profile parser, peer-list parser, wg-quick generation (pure), the WireGuard mesh brought up for real inside its
  * OWN user+net namespace (skipped when the kernel has no wireguard), and the batman path driven by FAKE `ip` / `batctl` scripts (a dummy device
  * stands in for bat0: batman-adv itself is NOT exercised). The host network is never touched.
- * build (from netman/): see the README test list; link mesh.c, the vpn mods (wireguard vpnmod openvpn ipsec l2tp openconnect sstp vpnimport) and enterprise/*.c */
+ * build (from netman/): see the README test list; link mesh.c, the vpn mods (wireguard vpnmod openvpn ipsec l2tp openconnect sstp vpnimport) and netlink.c/licence.c */
 #define NETMAN_VPN_IMPLEMENTATION
 #include "../src/mods/vpn/vpn.h"
 #define NETMAN_NET_IMPLEMENTATION

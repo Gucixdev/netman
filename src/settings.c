@@ -21,7 +21,7 @@
 static const struct { const char *sec, *tab; int root; } nset_secs[] = {
 	{ "wifi", "Wi-Fi", 0 }, { "bluetooth", "Bluetooth", 0 }, { "net", "Network", 1 }, { "roaming", "Network", 1 },
 	{ "vpn", "VPN", 1 }, { "wireguard", "VPN", 1 }, { "firewall", "Firewall", 1 },
-	{ "enterprise", "Enterprise", 1 }, { "licence", "Enterprise", 1 }, { "tether", "Enterprise", 1 },
+	{ "bridge", "Links", 1 }, { "vlan", "Links", 1 }, { "route", "Links", 1 }, { "link", "Links", 1 }, { "dot1x", "Links", 1 }, { "tether", "Links", 1 }, { "licence", "Licence", 1 },
 	{ "tor", "Tor", 1 }, { "ssh", "SSH", 0 }, { "mesh", "Mesh", 1 }, { "bonding", "Bond", 1 }, { "tunnel", "Tunnel", 1 },
 	{ "metrics", "Metrics", 0 }, { "nmapi", "Daemon", 1 }, { "tui", "Interface", 0 }, { "privileges", "Interface", 0 },
 };

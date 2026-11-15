@@ -1,6 +1,6 @@
 /* netman TUI logic tests - parsers, display width, renderer, sort/filter, modals, key handling. No terminal, no network; nothing real is touched.
  *
- *   cc -std=gnu11 -Wall -Wextra -O2 -Isrc -Isrc/mods -Isrc/mods/vpn -DNETMAN_NO_MAIN -o /tmp/nm_logic tests/logic_test.c src/config.c src/mods/netlink.c src/mods/wol.c src/mods/tether.c src/mods/licence.c src/mods/wireguard.c src/mods/vpn/vpnmod.c src/mods/vpn/openvpn.c src/mods/ipsec.c src/mods/l2tp.c src/mods/openconnect.c src/mods/sstp.c src/mods/vpn/vpnimport.c src/mods/tor.c src/mods/ssh.c src/mods/mesh.c src/mods/bonding.c src/mods/tunnel.c && /tmp/nm_logic
+ *   cc -std=gnu11 -Wall -Wextra -O2 -Isrc -Isrc/mods -Isrc/mods/vpn -DNETMAN_NO_MAIN -o /tmp/nm_logic tests/logic_test.c src/config.c src/mods/netlink.c src/mods/nl_bond.c src/mods/nl_bridge.c src/mods/nl_vlan.c src/mods/nl_route.c src/mods/nl_link.c src/mods/nl_dot1x.c src/mods/wol.c src/mods/tether.c src/mods/licence.c src/mods/wireguard.c src/mods/vpn/vpnmod.c src/mods/vpn/openvpn.c src/mods/ipsec.c src/mods/l2tp.c src/mods/openconnect.c src/mods/sstp.c src/mods/vpn/vpnimport.c src/mods/tor.c src/mods/ssh.c src/mods/mesh.c src/mods/bonding.c src/mods/tunnel.c && /tmp/nm_logic
  */
 #define NETMAN_NO_MAIN
 #include "../src/netman.c"

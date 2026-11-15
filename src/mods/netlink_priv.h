@@ -1,4 +1,4 @@
-/* netlink_priv.h - private helpers shared by netlink.c, tether.c and licence.c (defined in netlink.c).
+/* netlink_priv.h - private helpers shared by netlink.c, the nl_*.c modules, tether.c and licence.c (defined in netlink.c).
  * Not an API: the public headers are netlink.h and licence.h. Plain C, no stb-style implementation macro.
  */
 #ifndef NETMAN_NETLINK_PRIV_H
@@ -54,5 +54,28 @@ void nl_req_init(nl_req *q, int type, int flags, size_t msglen);
 void nl_attr(nl_req *q, int type, const void *d, int len);
 int nl_nl(nl_req *q, nl_cb cb, void *u);
 int nl_idx(const char *ifn); /* ifindex or -ENODEV */
+
+/* ---- helpers shared by the nl_*.c files (defined in netlink.c unless noted) ---- */
+#include "netlink.h"
+#include <string.h>
+static inline int nl__nm(const char *s) { return nl_safe_name(s, 16); }
+static inline int nl__is(const netman_ent *e, const char *k) { return !strcmp(e->kind, k); }
+static inline void nl__a8(nl_req *q, int t, uint8_t v) { nl_attr(q, t, &v, 1); }
+static inline void nl__a16(nl_req *q, int t, uint16_t v) { nl_attr(q, t, &v, 2); }
+static inline void nl__a32(nl_req *q, int t, uint32_t v) { nl_attr(q, t, &v, 4); }
+static inline void nl__astr(nl_req *q, int t, const char *s) { nl_attr(q, t, s, (int)strlen(s) + 1); }
+int nl__nest(nl_req *q, int type);
+void nl__end(nl_req *q, int off);
+int nl__begin(nl_req *q, const char *name, const char *kind, int parent, int mtu);
+int nl__dellink(const char *name);
+int nl__setmtu(const char *ifn, int mtu);
+int nl__enslave(const char *slave, int master);
+void nl__rta(struct rtattr **tb, int max, struct rtattr *r, int len);
+uint32_t nl__u(struct rtattr *a);
+pid_t nl__readpid(const char *path);
+void nl__stop(const char *pidfile);
+int nl__bond_mode(const netman_ent *e);
+extern const char *const nl__bmodes[], *const nl__bhash[];
+int nl__icmp_probe(const char *ifn, const char *target, int timeout_ms); /* defined in nl_route.c */
 
 #endif
