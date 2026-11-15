@@ -149,6 +149,7 @@ Each has a tab in the TUI (only when enabled, read-only: the CLI changes things)
 ## tests (`tests/`)
 
     tests/run                                    builds and runs ALL of the below (about 5 minutes, idle machine; tmux tests can miss a deadline under load)
+    UNIT_CFLAGS="-g -fsanitize=address,undefined -fno-omit-frame-pointer" tests/run    the same with the unit tests built under ASan+UBSan (leaks fail a test)
 
 The individual commands, for running one:
 
