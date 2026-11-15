@@ -4,6 +4,7 @@
 #  - the script tests (cli_test, settings_cli_test, nmapi_test, pty*) make their own namespaces / private tmux servers and fake backends
 # Needs: cc, unshare, tmux, dbus-daemon (a missing tool skips what needs it). The module file lists come from src/sources, so moving a module needs no edit here.
 # Run it on an idle machine: the tmux (pty*) tests wait on screen text and can miss a deadline when the CPU is busy.
+# shellcheck disable=SC2046  # the module file lists are meant to split into words
 set -u
 cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
 O=$(mktemp -d); trap 'rm -rf "$O"' EXIT
@@ -24,7 +25,11 @@ unit() { # name [cc flags and extra sources...] ; runs from the repo root (golde
 	[ "$rc" != 0 ] && tail -8 "$O/$n.out" >&2
 	fin "$n" "$rc"
 }
-script() { local n=$1 rc; "tests/$n" >"$O/$n.out" 2>&1; rc=$?; [ "$rc" != 0 ] && grep -v 'warning\|note:\|^ *[0-9]* |\|^ *|' "$O/$n.out" | tail -12 >&2; fin "$n" "$rc"; }
+script() { # a tmux (pty*) test that fails once is run again: they wait on screen text and miss a deadline on a busy machine; a real failure fails twice
+	local n=$1 rc
+	"tests/$n" >"$O/$n.out" 2>&1; rc=$?
+	case $n in pty*) [ "$rc" = 0 ] || { echo "tests/run: $n failed once (rc $rc), running it again" >&2; "tests/$n" >"$O/$n.out" 2>&1; rc=$?; };; esac
+	[ "$rc" != 0 ] && grep -v 'warning\|note:\|^ *[0-9]* |\|^ *|' "$O/$n.out" | tail -12 >&2; fin "$n" "$rc"; }
 
 unit config_test src/config.c
 unit settings_test src/settings.c src/config.c

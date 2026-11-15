@@ -8,5 +8,5 @@ for pair in Manager: Device:Device Wired:Device.Wired Wireless:Device.Wireless G
             Active:Connection.Active Settings:Settings Connection:Settings.Connection IP4:IP4Config IP6:IP6Config Dns:DnsManager Agent:AgentManager; do
 	id=${pair%%:*} f=${pair#*:}
 	perl -0777 -ne 's/<!--.*?-->//gs; while (/(<interface\b.*?<\/interface>)/gs) { $x = $1; $x =~ s/^[ \t]*\n//mg; $x =~ s/\\/\\\\/g; $x =~ s/"/\\"/g; for (split /\n/, $x) { s/^\s+/ /; print "\t\"$_\\n\"\n" } }' "$ref/org.freedesktop.NetworkManager${f:+.$f}.xml" \
-		| { echo "static const char nmx_$id[] ="; cat; echo ";"; }
+		| { echo "static const char nmx_${id}[] ="; cat; echo ";"; }
 done
