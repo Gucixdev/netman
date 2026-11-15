@@ -951,6 +951,7 @@ NETMAN_VPN_API int netman_vpn_ks_state(void) {
     return 0;
 }
 NETMAN_VPN_API int netman_vpn_list(void) {
+    int shown = 0, locked = 0;
     DIR *d = opendir(netman_vpn_conf_dir);
     if (!d) { if (errno == ENOENT) goto ks; return netman_vpn__fail("%s: %s", netman_vpn_conf_dir, strerror(errno)); }
     struct dirent *e;
@@ -963,8 +964,8 @@ NETMAN_VPN_API int netman_vpn_list(void) {
         netman_vpn__mute = 1; char *t = netman_vpn__load(nm, &l, &ty, path, sizeof path); netman_vpn__mute = 0;
         if (!t) {                                           /* cannot read it: say so instead of hiding the profile */
             char fp[PATH_MAX]; snprintf(fp, sizeof fp, "%s/%s", netman_vpn_conf_dir, e->d_name);
-            if (access(fp, R_OK)) netman_vpn__say("%-16s %-10s %s", nm, dot[1] == 'o' ? "openvpn" : "?", "locked");
-            else if (errno == EACCES) netman_vpn__say("%-16s %-10s %s", nm, dot[1] == 'o' ? "openvpn" : "?", "untrusted");
+            if (access(fp, R_OK)) { netman_vpn__say("%-16s %-10s %s", nm, dot[1] == 'o' ? "openvpn" : "?", "locked"); locked++; shown++; }
+            else if (errno == EACCES) { netman_vpn__say("%-16s %-10s %s", nm, dot[1] == 'o' ? "openvpn" : "?", "untrusted"); shown++; }
             continue;
         }
         if (ty == NETMAN_VPN_WG) {
@@ -983,9 +984,12 @@ NETMAN_VPN_API int netman_vpn_list(void) {
         }
         netman_vpn__wipe(t, l); free(t);
         netman_vpn__say("%-16s %-10s %s%s", nm, netman_vpn__tyname(ty), state, extra);
+        shown++;
     }
     closedir(d);
 ks:;
+    if (!shown) netman_vpn__say("no profiles in %s (netman vpn import FILE adds one)", netman_vpn_conf_dir);
+    if (locked) netman_vpn__say("%d profile%s readable only by root: run `sudo netman vpn list` to see %s state", locked, locked == 1 ? "" : "s", locked == 1 ? "its" : "their");
     int k = netman_vpn_ks_state();
     netman_vpn__say("killswitch %s", k > 0 ? "on" : k == 0 ? "off" : "unknown");
     return 0;

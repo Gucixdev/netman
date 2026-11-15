@@ -401,7 +401,7 @@ static void test_profiles(void) {
     netman_vpn_conf_dir = dir; netman_vpn_run_dir = "/nonexistent-run";
     FILE *m = open_memstream(&p, &l); netman_vpn_out = m;
     OK(netman_vpn_list() == 0, "list on a missing directory is empty, not an error");
-    fclose(m); OK(strstr(p, "NAME") == NULL, "no profile lines"); free(p);
+    fclose(m); OK(strstr(p, "NAME") == NULL, "no profile lines"); OK(strstr(p, "no profiles in ") && strstr(p, "vpn import"), "an empty list says so and how to add one"); free(p);
     snprintf(src, sizeof src, "%s/in.conf", d);
     FILE *f = fopen(src, "w"); fputs("[Interface]\nPrivateKey = gI6EdUSYvn8ugXOt8QQD6Yc+JyiZxIhp3GInSWRfWGE=\nAddress = 10.0.0.2/32\n[Peer]\nPublicKey = gI6EdUSYvn8ugXOt8QQD6Yc+JyiZxIhp3GInSWRfWGE=\nEndpoint = 192.0.2.1:51820\nAllowedIPs = 0.0.0.0/0\n", f); fclose(f);
     FILE *dn = fopen("/dev/null", "w"); netman_vpn_out = dn; netman_vpn_err = dn;
