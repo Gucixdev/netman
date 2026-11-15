@@ -27,6 +27,11 @@ chk 2 "unknown word in a group" "$N" wifi frob; contains "unknown command 'wifi 
 printf '[privileges]\nsudo = always\n' >"$work/always.conf"
 chk 0 "the sudo notice names the command (sudo itself is a fake: true)" env NETMAN_CONFIG="$work/always.conf" NM_SUDO_CMD=true "$N" vpn up x; contains "\`vpn\` needs root; asking sudo" "sudo notice"
 [ "${LAST#*wpa_supplicant socket}" = "$LAST" ] && ok || no "the sudo notice still blames wpa_supplicant for every command"
+# ./install into a scratch prefix: binary, man page and the default profiles land under it, nothing under $HOME
+chk 0 "install into a prefix" env PREFIX="$work/pfx" HOME="$work/nohome" ./install; contains "installed in $work/pfx/bin/netman" "install says where"
+[ -x "$work/pfx/bin/netman" ] && [ -s "$work/pfx/share/man/man1/netman.1" ] && [ -f "$work/pfx/share/netman/profiles/example.ssh" ] && ok || no "install left binary, man page and profiles under the prefix"
+[ ! -e "$work/nohome" ] && ok || no "install wrote under HOME although PREFIX was set"
+chk 2 "install takes only -rebuild" ./install --frob; contains "-rebuild" "install usage"
 chk 0 "--version" "$N" --version; contains "netman " "--version prints the name"; v=$LAST
 chk 0 "-V" "$N" -V; [ "$LAST" = "$v" ] && ok || no "-V differs from --version"
 chk 0 "version command" "$N" version; [ "$LAST" = "$v" ] && ok || no "version differs from --version"

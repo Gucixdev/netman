@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # install - build netman and install it for the current user: no root; the one flag is -rebuild (full rebuild first).
-# Binary to ~/.local/bin/netman, the default profiles to ~/.local/share/netman/profiles (found there at start).
+# Binary to ~/.local/bin/netman, the man page to share/man/man1, the default profiles to ~/.local/share/netman/profiles (found there at start).
 # PREFIX=/usr/local (and sudo) installs system-wide; DESTDIR is honoured for packagers.
 set -eu
 cd "$(dirname "$(readlink -f "$0")")"
@@ -13,6 +13,7 @@ dest=${DESTDIR:-}$prefix
 
 ./build > /dev/null
 install -Dm755 bin/netman "$dest/bin/netman"
+install -Dm644 src/netman.1 "$dest/share/man/man1/netman.1"
 for f in share/profiles/*; do install -Dm644 "$f" "$dest/share/netman/profiles/$(basename "$f")"; done
 echo "netman installed in $dest/bin/netman (profiles: $dest/share/netman/profiles)"
 case ":$PATH:" in
