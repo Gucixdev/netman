@@ -39,3 +39,4 @@ sudo prompt. SSTP is recognised but not supported; PPTP is refused on purpose. F
 - [docs/tests.md](docs/tests.md): the test suites, how to run one, what is not tested
 - [docs/netlink.md](docs/netlink.md): the link modules (bridge, vlan, route, link, dot1x, tether)
 - [docs/ssh-mesh-bond-tunnel.md](docs/ssh-mesh-bond-tunnel.md): the optional ssh, mesh, bonding and tunnel mods
+- [docs/bench.md](docs/bench.md): `./bench` results for what runs without root or network (scoring, config, firewall renderer, VPN import, build time)

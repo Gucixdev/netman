@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# bench - measure what can be measured without root and without a network, append the tables to docs/bench.md. No arguments.
+#   1. tests/bench.c: timing loops over the pure functions (scoring, config parse, firewall renderer, VPN profile import)
+#   2. the unit-test binaries that need nothing from the host (config, settings, priv, fw, wifi_bt, net_score), wall time per run
+#   3. the real binary: help, config, status in an empty network namespace, and a full and a no-op build with tools/cc
+# Not measurable here: real Wi-Fi/Bluetooth/VPN connects, DHCP, DNS, sudo prompts, anything that needs a network or root.
+# Everything runs in a private temp directory, HOME points into it, network things run under `unshare -Urn`.
+# Each timed row: 1 warm-up run, then RUNS runs (medians with [min..max]).
+set -euo pipefail
+cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+RUNS=${RUNS:-9}   # environment only for quick trials; docs/bench.md uses the default
+
+for tool in cc unshare sort awk mktemp; do command -v "$tool" > /dev/null || { echo "bench: $tool not found" >&2; exit 2; }; done
+T=$(mktemp -d "${TMPDIR:-/tmp}/netman-bench.XXXXXX")
+trap 'rm -rf -- "$T"' EXIT
+export HOME=$T/home NETMAN_PRIVILEGES_SUDO=never
+mkdir -p "$HOME"
+
+CC=cc
+cflags=(-std=gnu11 -O1 -Wno-format-truncation -Isrc -Isrc/mods -Isrc/mods/vpn)
+pick() { grep -E "/($1)\\.c\$" src/sources | tr '\n' ' '; }
+VPN=$(pick 'wireguard|vpnmod|openvpn|ipsec|l2tp|openconnect|sstp|vpnimport|tor')
+
+now_us() { local t=$EPOCHREALTIME; echo $((${t/./} + 0)); }
+# timeit CMD... : sets MED MIN MAX in ms (one warm-up, RUNS timed runs); output discarded; a failing command stops the bench
+timeit() {
+	local i t0 v=()
+	"$@" > /dev/null 2>&1 || { echo "bench: failed: $*" >&2; exit 1; }
+	for ((i = 0; i < RUNS; i++)); do
+		t0=$(now_us)
+		"$@" > /dev/null 2>&1 || { echo "bench: failed: $*" >&2; exit 1; }
+		v+=("$(($(now_us) - t0))")
+	done
+	read -r MED MIN MAX < <(printf '%s\n' "${v[@]}" | sort -n | awk '{ a[NR] = $1 } END { printf "%.2f %.2f %.2f\n", a[int((NR + 1) / 2)] / 1000, a[1] / 1000, a[NR] / 1000 }')
+}
+
+out=docs/bench.md
+commit=$(git rev-parse --short HEAD 2> /dev/null || echo unknown)
+dirty=""
+[ -z "$(git status --porcelain src 2> /dev/null)" ] || dirty=" (uncommitted changes in src)"
+cpu=$(sed -n 's/^model name[^:]*: *//p' /proc/cpuinfo | head -1)
+rpt=$T/report
+{
+	printf '\n## %s, commit %s%s\n\n' "$(date +%F)" "$commit" "$dirty"
+	printf 'machine: %s, %s threads, %s; %s; shared with the owner'"'"'s editors\n' "$cpu" "$(nproc)" "$(uname -sr)" "$($CC --version | head -1)"
+	printf 'load average at start: %s; timed rows: 1 warm-up run, then %s runs\n' "$(cut -d' ' -f1-3 /proc/loadavg)" "$RUNS"
+	printf 'command: `./bench`; tests/bench.c built with `cc -std=gnu11 -O1 -Isrc -Isrc/mods -Isrc/mods/vpn` (the flags of tests/run), run in `unshare -Urn`\n'
+} > "$rpt"
+
+# 1. pure functions
+"$CC" "${cflags[@]}" -o "$T/bench" tests/bench.c src/config.c $VPN
+{
+	printf '\n### Pure functions (tests/bench.c), time of one call; 11 samples per row after a warm-up sample\n\n'
+	unshare -Urn "$T/bench"
+} >> "$rpt"
+
+# 2. unit-test binaries
+{
+	printf '\n### Unit-test binaries, wall time of one run in `unshare -Urnm` (build excluded), ms\n\n'
+	echo '| test | checks | median | min | max |'
+	echo '|---|---|---|---|---|'
+} >> "$rpt"
+for spec in "config_test:src/config.c" "settings_test:src/settings.c src/config.c" "priv_test:" "fw_test:" "wifi_bt_test:" "net_score_test:"; do
+	t=${spec%%:*}
+	# shellcheck disable=SC2086
+	"$CC" "${cflags[@]}" -o "$T/$t" "tests/$t.c" ${spec#*:}
+	checks=$(unshare -Urnm sh -c 'mount -t sysfs sysfs /sys 2>/dev/null; exec "$0"' "$T/$t" 2>&1 | grep -Eo '[0-9]+ checks|^[0-9]+ passed' | head -1 || true)
+	timeit unshare -Urnm sh -c 'mount -t sysfs sysfs /sys 2>/dev/null; exec "$0"' "$T/$t"
+	printf '| %s | %s | %s | %s | %s |\n' "$t" "${checks:-?}" "$MED" "$MIN" "$MAX" >> "$rpt"
+done
+
+# 3. the binary
+if [ ! -x bin/netman ]; then tools/cc -o "$T/netman" > /dev/null 2>&1 && bin=$T/netman || { echo "bench: build failed" >&2; exit 2; }; else bin=$PWD/bin/netman; fi
+{
+	printf '\n### The binary (%s, %s bytes), one process per run, ms\n\n' "bin/netman as built by ./run" "$(stat -c %s "$bin")"
+	echo '| command | median | min | max |'
+	echo '|---|---|---|---|'
+} >> "$rpt"
+trow() { # trow LABEL CMD...
+	local label=$1
+	shift
+	timeit "$@"
+	printf '| %s | %s | %s | %s |\n' "$label" "$MED" "$MIN" "$MAX" >> "$rpt"
+}
+trow '`true` (floor: fork and exec)' /bin/true
+trow '`unshare -Urn true` (floor of the rows marked ns)' unshare -Urn /bin/true
+trow '`netman help`' "$bin" help
+trow '`netman help wifi`' "$bin" help wifi
+trow '`netman config show`' "$bin" config show
+trow '`netman config check`' "$bin" config check
+trow '`netman status` (ns: only an empty loopback to list)' unshare -Urn "$bin" status
+
+# build time in a copy, so the repository's own object cache is not touched
+mkdir -p "$T/copy"
+cp -r src tools "$T/copy/"
+{
+	printf '\n### Build with tools/cc (all cores, -O1, in a copy of src and tools), wall seconds\n\n'
+} >> "$rpt"
+full=()
+for ((i = 0; i < 3; i++)); do
+	find "$T/copy" -name cache -prune -exec rm -rf {} + 2> /dev/null || true
+	mkdir -p "$T/copy/bin"
+	t0=$(now_us)
+	(cd "$T/copy" && CC=$CC tools/cc -o bin/netman.tmp > /dev/null 2>&1) || { echo "bench: copy build failed" >&2; exit 2; }
+	full+=("$(($(now_us) - t0))")
+done
+nop=()
+for ((i = 0; i < RUNS; i++)); do
+	t0=$(now_us)
+	(cd "$T/copy" && CC=$CC tools/cc -o bin/netman.tmp > /dev/null 2>&1)
+	nop+=("$(($(now_us) - t0))")
+done
+fmt() { printf '%s\n' "$@" | sort -n | awk '{ a[NR] = $1 } END { printf "%.2f s [%.2f..%.2f]", a[int((NR + 1) / 2)] / 1e6, a[1] / 1e6, a[NR] / 1e6 }'; }
+printf 'clean build, 3 runs: %s; nothing changed, %s runs: %s\n' "$(fmt "${full[@]}")" "$RUNS" "$(fmt "${nop[@]}")" >> "$rpt"
+printf '\nload average at end: %s\n' "$(cut -d' ' -f1-3 /proc/loadavg)" >> "$rpt"
+
+mkdir -p docs
+if [ ! -s "$out" ]; then
+	printf '# netman benchmarks\n\nAppended by `./bench`. Findings first, then the log.\n\n## Findings\n\n(none yet)\n\n## Results log\n' > "$out"
+fi
+cat "$rpt" >> "$out"
+cat "$rpt"
