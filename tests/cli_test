@@ -20,6 +20,17 @@ chk 0 "help tui" "$N" help tui; contains "GENERAL" "help tui = popup text"
 chk 0 "help config" "$N" help config; contains "wifi.backend" "help config lists keys"
 chk 2 "help unknown" "$N" help nosuchthing
 chk 2 "unknown command" "$N" frobnicate; contains "unknown command" "unknown command message"
+chk 2 "a typo suggests the command" "$N" stauts; contains "did you mean 'status'" "typo suggestion"
+chk 2 "a bare group lists its commands" "$N" wifi; contains "netman wifi connect" "bare group lists the group"; contains "'wifi' needs a command" "bare group message"
+chk 2 "bare config lists its commands, not every key" "$N" config; contains "netman config show" "bare config"
+chk 2 "unknown word in a group" "$N" wifi frob; contains "unknown command 'wifi frob'" "group + unknown word"; contains "netman wifi list" "group listing after a bad word"
+printf '[privileges]\nsudo = always\n' >"$work/always.conf"
+chk 0 "the sudo notice names the command (sudo itself is a fake: true)" env NETMAN_CONFIG="$work/always.conf" NM_SUDO_CMD=true "$N" vpn up x; contains "\`vpn\` needs root; asking sudo" "sudo notice"
+[ "${LAST#*wpa_supplicant socket}" = "$LAST" ] && ok || no "the sudo notice still blames wpa_supplicant for every command"
+chk 0 "--version" "$N" --version; contains "netman " "--version prints the name"; v=$LAST
+chk 0 "-V" "$N" -V; [ "$LAST" = "$v" ] && ok || no "-V differs from --version"
+chk 0 "version command" "$N" version; [ "$LAST" = "$v" ] && ok || no "version differs from --version"
+case $v in "netman "[0-9]*.[0-9]*.[0-9]*) ok;; *) no "version line is 'netman X.Y.Z': $v";; esac
 # every table row has help text and is reachable from `netman help`
 "$N" help >"$work/all"; "$N" help --man >"$work/man"
 cmp -s "$work/man" src/netman.1 && ok || no "src/netman.1 is out of date (regenerate: netman help --man > src/netman.1)"

@@ -17,6 +17,7 @@ typedef struct nc_cmd {
 
 static netman_config nc_cfg;      /* the effective configuration, loaded once in main */
 
+#define NETMAN_VERSION "0.1.0"
 static int nc_usage(const nc_cmd *c) { fprintf(stderr, "usage: netman %s %s\n", c->name, c->args); return 2; }
 
 /* ---- config -> module globals ------------------------------------------------------------------------------------- */
@@ -82,6 +83,8 @@ static int h_status(const nc_cmd *c, int n, char **a)
 	if (nc_enabled("vpn")) { puts("vpn"); netman_vpn_list(); }
 	return 0;
 }
+
+static int h_version(const nc_cmd *c, int n, char **a) { (void)c; (void)n; (void)a; puts("netman " NETMAN_VERSION); return 0; }
 
 static int h_wifi_list(const nc_cmd *c, int n, char **a) { (void)c; (void)n; (void)a; return netman_wifi_list(); }
 static int h_wifi_scan(const nc_cmd *c, int n, char **a) { (void)c; (void)n; (void)a; return netman_wifi_scan(); }
@@ -959,9 +962,10 @@ static const nc_cmd nc_table[] = {
 	{ "settings --dump-api", "", h_set_api, R_NEV, NULL, "JSON: the whole schema, the current values and where each one comes from", "For a launcher or panel that hosts netman's settings: tabs, then one object per setting with type, range or choices, default, value, source, needs_root, restart, gate and hidden." },
 	{ "settings menu", "[SECTION|TAB] [--all]", h_set_menu, R_NEV, NULL, "dmenu-ready lines: `section.key = value  # description`", "netman settings menu | dmenu -l 20 | netman settings pick" },
 	{ "settings pick", "[--choices] [--value VALUE]", h_set_pick, R_NEV, NULL, "read the chosen menu line on stdin, offer the values in a menu and set the one chosen", "The value menu is $NETMAN_MENU (a shell command, default `dmenu -p \"$NETMAN_MENU_PROMPT\"`); nothing chosen = nothing changed. --choices prints the choices instead; --value V sets V without asking." },
-	{ "daemon", "[--bus ADDRESS]", h_daemon, R_YES, "nmapi", "serve the NetworkManager D-Bus API (drop-in for NM clients)", "Claims org.freedesktop.NetworkManager on the system bus (fails if a NetworkManager owns it) and answers until SIGTERM. --bus selects another bus, e.g. a private dbus-daemon. See docs/nm-api-surface.md for what is implemented." },
+	{ "daemon", "[--bus ADDRESS]", h_daemon, R_YES, "nmapi", "serve the NetworkManager D-Bus API (drop-in for NM clients)", "Claims org.freedesktop.NetworkManager on the system bus (fails if a NetworkManager owns it) and answers until SIGTERM. --bus selects another bus, e.g. a private dbus-daemon. The subset that is implemented is described at the top of src/mods/nmapi.c." },
 	{ "config toggle", "SECTION.KEY", h_cfg_toggle, R_NEV, NULL, "flip a yes/no setting", "" },
 	{ "config example", "", h_cfg_example, R_NEV, NULL, "print the documented example config", "" },
+	{ "version", "", h_version, R_NEV, NULL, "print the version (also --version, -V)", "" },
 	{ "help", "[TOPIC]", h_help, R_NEV, NULL, "this list, or the help for one command or group", "" },
 	{ "-tui", "", NULL, R_WPA, NULL, "the terminal UI (also --tui, -t); ? inside shows help", "" },
 };

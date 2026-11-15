@@ -1,7 +1,7 @@
 /* nmapi.c - the org.freedesktop.NetworkManager D-Bus API, served by netman's daemon over its own dbus.h (no libdbus, no GLib, no libnm).
  *
  * NetworkManager's real foundation for compatibility is this API, not GObject: libnm, nm-applet, plasma-nm and nmcli are clients of it.
- * This file is a faithful SUBSET of it; docs/nm-api-surface.md lists every interface/method/property/signal as tested, untested or absent.
+ * This file is a faithful SUBSET of it: what exists is below, what is missing is under "Not done"; tests/nmapi_test is the list of what is checked.
  *
  *   object tree   /org/freedesktop (ObjectManager, as libnm expects) and under /org/freedesktop/NetworkManager: the manager, Devices/N,
  *                 AccessPoint/N, Settings + Settings/N, ActiveConnection/N, IP4Config/N, IP6Config/N, DnsManager, AgentManager
@@ -13,7 +13,7 @@
  *
  * Included into netman.c (after cli.h): it sits on dbus.h's static code and on the other modules of the same translation unit.
  * Not thread-safe; one blocking backend call (a Wi-Fi connect) blocks the service for its duration, like every other netman call.
- * Not done: see docs/nm-api-surface.md (no secret agents, checkpoints, sleep/enable, DHCP*Config objects, VPN plugin API, statistics).
+ * Not done: no secret agents, checkpoints, sleep/enable, DHCP*Config objects, VPN plugin API, statistics.
  */
 #include <dirent.h>
 #include "nmapi.h"

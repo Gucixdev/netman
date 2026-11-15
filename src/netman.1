@@ -503,13 +503,16 @@ dmenu\-ready lines: `section.key = value  # description`. netman settings menu |
 read the chosen menu line on stdin, offer the values in a menu and set the one chosen. The value menu is $NETMAN_MENU (a shell command, default `dmenu \-p "$NETMAN_MENU_PROMPT"`); nothing chosen = nothing changed. \-\-choices prints the choices instead; \-\-value V sets V without asking.
 .TP
 .B netman daemon [\-\-bus ADDRESS]
-serve the NetworkManager D\-Bus API (drop\-in for NM clients). Claims org.freedesktop.NetworkManager on the system bus (fails if a NetworkManager owns it) and answers until SIGTERM. \-\-bus selects another bus, e.g. a private dbus\-daemon. See docs/nm\-api\-surface.md for what is implemented.
+serve the NetworkManager D\-Bus API (drop\-in for NM clients). Claims org.freedesktop.NetworkManager on the system bus (fails if a NetworkManager owns it) and answers until SIGTERM. \-\-bus selects another bus, e.g. a private dbus\-daemon. The subset that is implemented is described at the top of src/mods/nmapi.c.
 .TP
 .B netman config toggle SECTION.KEY
 flip a yes/no setting
 .TP
 .B netman config example
 print the documented example config
+.TP
+.B netman version
+print the version (also \-\-version, \-V)
 .TP
 .B netman help [TOPIC]
 this list, or the help for one command or group

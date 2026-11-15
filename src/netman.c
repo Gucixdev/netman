@@ -83,13 +83,10 @@ int main(int argc, char **argv)
 	for (int i = 1; i < argc; i++)   /* -tui anywhere (the easy one to remember), --tui and -t as aliases */
 		if (!strcmp(argv[i], "-tui") || !strcmp(argv[i], "--tui") || !strcmp(argv[i], "-t")) { tui = 1; argv[1] = "-tui"; argc = 2; break; }
 	if (argc > 1 && (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help"))) argv[1] = "help";
+	if (argc > 1 && (!strcmp(argv[1], "--version") || !strcmp(argv[1], "-V"))) argv[1] = "version";
 	if (argc == 1) { static char *st[] = { "netman", "status", NULL }; argv = st; argc = 2; }
 	c = nc_match(argc - 1, argv + 1, &words);
-	if (!c) {
-		fprintf(stderr, "netman: unknown command '%s'\n", argv[1]);
-		fputs("try: netman help\n", stderr);
-		return 2;
-	}
+	if (!c) return nc_unknown(argc, argv);
 	/* configuration: a broken file stops everything except `config` and `help`, which are how you fix it */
 	if (netman_config_load(&nc_cfg, err, sizeof err)) {
 		if (strcmp(c->name, "help") && strncmp(c->name, "config", 6) && strncmp(c->name, "settings", 8) && strcmp(c->name, "fw preset")) { fprintf(stderr, "netman: %s\n(netman config check, or fix the file)\n", err); return 1; }

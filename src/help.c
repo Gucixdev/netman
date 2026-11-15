@@ -86,6 +86,56 @@ static const char *nc_group_note(const char *g, int l)
 
 static int nc_group_len(const char *name) { const char *s = strchr(name, ' '); return s ? (int)(s - name) : (int)strlen(name); }
 
+/* edit distance of two short words (anything longer than 31 chars counts as far away) */
+static int nc_dist(const char *a, const char *b)
+{
+	int la = (int)strlen(a), lb = (int)strlen(b), row[32];
+	if (la > 31 || lb > 31) return 99;
+	for (int j = 0; j <= lb; j++) row[j] = j;
+	for (int i = 1; i <= la; i++) {
+		int diag = row[0];
+		row[0] = i;
+		for (int j = 1; j <= lb; j++) {
+			int up = row[j], m = diag + (a[i - 1] == b[j - 1] ? 0 : 1);
+			if (row[j] + 1 < m) m = row[j] + 1;
+			if (row[j - 1] + 1 < m) m = row[j - 1] + 1;
+			row[j] = m; diag = up;
+		}
+	}
+	return row[lb];
+}
+
+static void nc_help_row(FILE *o, const nc_cmd *c, int width);
+
+/* argv[1..] matched no table row: say what is wrong and what to type instead. A bare group (`netman wifi`) lists its commands. Returns the exit code (2). */
+static int nc_unknown(int argc, char **argv)
+{
+	const char *w = argv[1], *best = NULL;
+	int wl = (int)strlen(w), bd = 3, isgroup = 0;
+	for (int i = 0; i < NC_NTABLE; i++) {
+		const nc_cmd *c = &nc_table[i];
+		char g[32];
+		int gl = nc_group_len(c->name), d;
+		if (gl == wl && !strncmp(c->name, w, (size_t)wl)) isgroup = 1;
+		if (gl > 31 || c->name[0] == '-') continue;
+		memcpy(g, c->name, (size_t)gl); g[gl] = 0;
+		d = nc_dist(w, g);
+		if (d < bd) { bd = d; best = c->name; }
+	}
+	if (isgroup) {
+		if (argc == 2) fprintf(stderr, "netman: '%s' needs a command:\n\n", w);
+		else fprintf(stderr, "netman: unknown command '%s %s'\n\n", w, argv[2]);
+		for (int i = 0; i < NC_NTABLE; i++)   /* only the rows: `help config` would print every key */
+			if (nc_group_len(nc_table[i].name) == wl && !strncmp(nc_table[i].name, w, (size_t)wl)) nc_help_row(stderr, &nc_table[i], 52);
+		fprintf(stderr, "\nnetman help %s for details\n", w);
+		return 2;
+	}
+	fprintf(stderr, "netman: unknown command '%s'", w);
+	if (best && w[0] != '-') fprintf(stderr, " (did you mean '%.*s'?)", nc_group_len(best), best);
+	fputs("\ntry: netman help\n", stderr);
+	return 2;
+}
+
 static void nc_help_row(FILE *o, const nc_cmd *c, int width)
 {
 	char left[200];
