@@ -87,7 +87,7 @@ int main(void)
 		netman_ssh_format(&p, b, sizeof b); CHK(netman_ssh_parse(b, &q, e, sizeof e) == 0 && q.nfwd == 2 && q.control && !strcmp(q.jump, p.jump), "round trip: %s", e);
 	}
 	/* ---- save + argv ---- */
-	rc = RUN(b, "save", "web", "host=gw.example", "user=bob", "port=2222", "key=/home/bob/.ssh/id_ed25519", "jump=j1.example,adm@j2.example:2200", "forward=L:8080:localhost:80", "forward=D:1080", "forward=R:9000:localhost:22", "keepalive=15", "control=yes");
+	rc = RUN(b, "save", "web", "host=gw.example", "user=bob", "port=2222", "key=/keys/id_ed25519", "jump=j1.example,adm@j2.example:2200", "forward=L:8080:localhost:80", "forward=D:1080", "forward=R:9000:localhost:22", "keepalive=15", "control=yes");
 	CHK(rc == 0, "save: %s", b);
 	rc = RUN(b, "save", "bad", "host=x", "strict=no"); CHK(rc == 2 && strstr(b, "never turns host key checking off"), "save strict=no refused: %s", b);
 	{ char path[400]; snprintf(path, sizeof path, "%s/profiles/bad.ssh", dir); CHK(access(path, F_OK) != 0, "refused profile not written"); }
@@ -97,7 +97,7 @@ int main(void)
 	CHK(strstr(b, l) == b || 1, "-");
 	snprintf(l, sizeof l, "UserKnownHostsFile=%s/known_hosts", dir); CHK(strstr(b, l), "known_hosts passed: %s", b);
 	CHK(strstr(b, "ServerAliveInterval=15") && strstr(b, "ServerAliveCountMax=3") && strstr(b, "-p 2222") && strstr(b, "-l bob"), "port/user/keepalive: %s", b);
-	CHK(strstr(b, "-i /home/bob/.ssh/id_ed25519") && strstr(b, "IdentitiesOnly=yes") && strstr(b, "-J j1.example,adm@j2.example:2200"), "key and jump: %s", b);
+	CHK(strstr(b, "-i /keys/id_ed25519") && strstr(b, "IdentitiesOnly=yes") && strstr(b, "-J j1.example,adm@j2.example:2200"), "key and jump: %s", b);
 	CHK(strstr(b, "-L 127.0.0.1:8080:localhost:80") && strstr(b, "-D 127.0.0.1:1080") && strstr(b, "-R 9000:localhost:22"), "forwards: %s", b);
 	CHK(strstr(b, "ControlMaster=yes") && strstr(b, "ControlPath="), "control master: %s", b);
 	CHK(strstr(b, "-- gw.example") != NULL && !strstr(b, "StrictHostKeyChecking=no") && !strstr(b, "/dev/null"), "no weakening: %s", b);
