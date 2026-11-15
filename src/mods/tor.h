@@ -1,4 +1,4 @@
-/* tor.h - route this machine's traffic through Tor. Real code in tor.c (link it in; see readme.md).
+/* tor.h - route this machine's traffic through Tor. Real code in tor.c (link it in; see README.md).
  *
  * netman does not implement Tor. It manages a `tor` process the way it manages wpa_supplicant: it writes a torrc under
  * /run/netman/tor, loads the nftables rules that make the machine FAIL CLOSED, starts tor, and talks to its control port.

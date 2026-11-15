@@ -33,6 +33,7 @@ Everything that used to be in the long readme: layout, configuration, privileges
     bin/netman                  status of links, wifi, bluetooth and vpn
     bin/netman help [TOPIC]     every command grouped; `help wifi`, `help wifi connect`, `help tui`, `help config`, `help --man`
     bin/netman -tui             the TUI (`--tui` and `-t` also work)
+    bin/netman --version        the version (also `-V`, `version`); a group alone (`netman wifi`) lists its commands, a typo gets a suggestion
 
 `netman help` lists the table (wifi, bt, net, roam, vpn, fw, metrics, config). A module switched off in the config is skipped with
 a message (`wifi disabled in config (netman config toggle wifi.enabled)`, exit 3) and its tab is hidden in the TUI.
