@@ -127,6 +127,20 @@ int main(void)
 		CHK(kill((pid_t)sshpid, 0) != 0, "ssh child is gone after down");
 		rc = RUN(b, "status"); CHK(strstr(b, "svc down"), "status after down: %s", b);
 	}
+	/* a pid file left behind whose number now belongs to some other program: not "running", and down must not signal it */
+	{
+		pid_t other = fork();
+		char num[32];
+		if (other == 0) { execlp("sleep", "sleep", "60", (char *)NULL); _exit(127); }
+		ms(200);
+		snprintf(num, sizeof num, "%ld\n", (long)other); wr("st/svc.pid", num, 0);
+		rc = RUN(b, "status"); CHK(strstr(b, "svc down"), "a stale pid file is not a running tunnel: %s", b);
+		rc = RUN(b, "down", "svc"); CHK(rc == 0 && strstr(b, "is not running"), "down with a stale pid file: %s", b);
+		ms(200);
+		CHK(waitpid(other, NULL, WNOHANG) == 0, "the other program was not signalled");
+		kill(other, SIGKILL); waitpid(other, NULL, 0);
+		{ char path[400]; snprintf(path, sizeof path, "%s/st/svc.pid", dir); unlink(path); }
+	}
 	/* reconnect = no: supervisor ends with the connection */
 	RUN(b, "save", "once", "host=o.example", "reconnect=no"); wr("failfirst", "1\n", 0);
 	RUN(b, "up", "once"); ms(1000);

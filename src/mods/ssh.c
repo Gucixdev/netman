@@ -2,6 +2,7 @@
 #include "modkit.h"
 #include "net.h"
 #include "ssh.h"
+#include <limits.h>
 #include <poll.h>
 
 void netman_ssh_cfg_defaults(netman_ssh_cfg *c)
@@ -274,6 +275,23 @@ static int load(const netman_ssh_cfg *c, const char *name, netman_ssh *p, char *
 	return netman_ssh_check(p, err, en);
 }
 
+/* A pid file can outlive its supervisor (kill -9, power loss with ssh.state on a disk) and the number is then given to some other
+ * program: "running" must not mean it, and down must not signal it. The supervisor is a fork of netman, so it runs our executable.
+ * When the link cannot be read (another user's process, no /proc) the answer stays what it was: alive. */
+static int pid_is_supervisor(long pid)
+{
+	char a[PATH_MAX], b[PATH_MAX], lp[64], *d;
+	ssize_t n, m;
+	if (!mk_pid_alive(pid)) return 0;
+	snprintf(lp, sizeof lp, "/proc/%ld/exe", pid);
+	n = readlink(lp, a, sizeof a - 1); m = readlink("/proc/self/exe", b, sizeof b - 1);
+	if (n <= 0 || m <= 0) return 1;
+	a[n] = 0; b[m] = 0;
+	if ((d = strstr(a, " (deleted)")) && !d[10]) *d = 0;   /* netman was upgraded while the supervisor runs */
+	if ((d = strstr(b, " (deleted)")) && !d[10]) *d = 0;
+	return !strcmp(a, b);
+}
+
 static int running(const netman_ssh_cfg *c, const char *name, long *pid)
 {
 	char p[400];
@@ -281,7 +299,7 @@ static int running(const netman_ssh_cfg *c, const char *name, long *pid)
 	sp(c, name, "pid", p, sizeof p);
 	x = mk_pid_read(p);
 	if (pid) *pid = x;
-	return mk_pid_alive(x);
+	return pid_is_supervisor(x);
 }
 
 static int do_run(const netman_ssh_cfg *c, const netman_ssh *p, FILE *err)
