@@ -733,6 +733,19 @@ static int netman__build(struct netman__dh *d, const netman_lease *l, int type, 
 		return n < 300 ? 300 : (int)n; /* BOOTP minimum; zero padded by memset */
 	}
 }
+/* option 15 is whatever the server sent. Some send a list ("a.lan b.lan"): keep the first name. Anything outside
+ * [A-Za-z0-9.-] (a newline, an escape byte) drops the name: netman_dns_set would refuse it and fail the whole lease,
+ * and the text also goes into the lease file and onto the screen. */
+static void netman__domain_clean(char *d)
+{
+	char *s = strchr(d, ' ');
+	if (s) *s = 0;
+	for (s = d; *s; s++)
+		if (!((*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') || (*s >= '0' && *s <= '9') || *s == '.' || *s == '-')) {
+			d[0] = 0;
+			return;
+		}
+}
 /* parse a reply; fills r. returns message type or 0 if it is not for us / malformed */
 static int netman__parse_reply(const uint8_t *p, size_t len, uint32_t xid, const unsigned char *mac, netman_lease *r)
 {
@@ -767,6 +780,7 @@ static int netman__parse_reply(const uint8_t *p, size_t len, uint32_t xid, const
 				r->domain[n] = 0;
 				while (n && r->domain[n - 1] == 0) n--; /* some servers NUL-terminate */
 				r->domain[n] = 0;
+				netman__domain_clean(r->domain);
 			}
 			break;
 		case 51:

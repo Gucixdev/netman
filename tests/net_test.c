@@ -305,6 +305,23 @@ static void test_finalize(void)
 	}
 }
 
+/* option 15 comes from whoever answers DHCP: a list or a name with odd bytes must not fail the lease (netman_dns_set refuses it) nor reach a file or the screen */
+static void test_domain(void)
+{
+	static const struct { const char *in, *want; } t[] = { { "dm.lan", "dm.lan" }, { "corp.lan home.lan", "corp.lan" }, { "x\nnameserver 6.6.6.6", "" }, { "a\033[2Jb", "" }, { "under_score.lan", "" }, { " ", "" } };
+	unsigned char mac[6] = { 2, 0, 0, 0, 0, 1 };
+	for (unsigned i = 0; i < sizeof t / sizeof *t; i++) {
+		struct netman__dh d;
+		netman_lease l;
+		uint8_t *o = d.opt;
+		size_t n = strlen(t[i].in);
+		memset(&d, 0, sizeof d), memset(&l, 0, sizeof l);
+		d.op = 2, d.xid = 7, memcpy(d.chaddr, mac, 6), memcpy(d.magic, "\x63\x82\x53\x63", 4);
+		*o++ = 53, *o++ = 1, *o++ = DH_ACK, *o++ = 15, *o++ = (uint8_t)n, memcpy(o, t[i].in, n), o += n, *o++ = 255;
+		CHECK(netman__parse_reply((const uint8_t *)&d, sizeof d, 7, mac, &l) == DH_ACK && !strcmp(l.domain, t[i].want), "option 15 case %u gave '%s'", i, l.domain);
+	}
+}
+
 static int selftest(int dnsmasq)
 {
 	char dir[] = "/tmp/nmbn.XXXXXX", rd[300], cd[300], rc[300], log[300];
@@ -326,6 +343,7 @@ static int selftest(int dnsmasq)
 	netman_dhcp_rto_ms = 500;
 	printf("namespace ok, state in %s\n", dir);
 	test_finalize();
+	test_domain();
 	if (getuid() != 0) return 2;
 	sh("ip link set lo up; ip link add d0 type dummy; ip link add v0 type veth peer name v1; ip link add wl0 type veth peer name w1");
 	if (start_holder() < 0 || sh("ip link set v1 netns %d; ip link set w1 netns %d", (int)holder, (int)holder)) {
